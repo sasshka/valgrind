@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "../../memcheck.h"
+#include <sys/syscall.h>
+#include <unistd.h>
 
 int main(int argc, char **argv)
 {

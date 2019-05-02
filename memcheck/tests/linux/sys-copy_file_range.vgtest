@@ -1,2 +1,3 @@
 prereq: test -e sys-copy_file_range
 prog: sys-copy_file_range
+args: copy_file_range_source dest
