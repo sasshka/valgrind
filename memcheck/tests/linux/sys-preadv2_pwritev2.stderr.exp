@@ -1,0 +1,69 @@
+
+Syscall param pwritev2(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:53)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param pwritev2(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:54)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param pwritev2(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:55)
+ Address 0x........ is 0 bytes inside a block of size 8 alloc'd
+   at 0x........: malloc (vg_replace_malloc.c:...)
+   by 0x........: main (sys-preadv2_pwritev2.c:48)
+
+Syscall param pwritev2(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:56)
+ Address 0x........ is on thread 1's stack
+ in frame #1, created by main (sys-preadv2_pwritev2.c:15)
+
+Warning: invalid file descriptor -1 in syscall pwritev2()
+Syscall param preadv2(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:61)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv2(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:62)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv2(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:63)
+ Address 0x........ is 0 bytes inside a block of size 8 alloc'd
+   at 0x........: malloc (vg_replace_malloc.c:...)
+   by 0x........: main (sys-preadv2_pwritev2.c:48)
+
+Syscall param preadv2(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:64)
+ Address 0x........ is on thread 1's stack
+ in frame #1, created by main (sys-preadv2_pwritev2.c:15)
+
+Warning: invalid file descriptor -1 in syscall preadv2()
+Syscall param pwritev2(vector[...]) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:69)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv2(vector[...]) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv2_pwritev2.c:70)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+
+HEAP SUMMARY:
+    in use at exit: 8 bytes in 1 blocks
+  total heap usage: 1 allocs, 0 frees, 8 bytes allocated
+
+For a detailed leak analysis, rerun with: --leak-check=full
+
+Use --track-origins=yes to see where uninitialised values come from
+For lists of detected and suppressed errors, rerun with: -s
+ERROR SUMMARY: 10 errors from 10 contexts (suppressed: 0 from 0)

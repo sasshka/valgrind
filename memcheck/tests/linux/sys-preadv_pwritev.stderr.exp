@@ -1,0 +1,69 @@
+
+Syscall param pwritev(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:52)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param pwritev(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:53)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param pwritev(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:54)
+ Address 0x........ is 0 bytes inside a block of size 8 alloc'd
+   at 0x........: malloc (vg_replace_malloc.c:...)
+   by 0x........: main (sys-preadv_pwritev.c:48)
+
+Syscall param pwritev(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:55)
+ Address 0x........ is on thread 1's stack
+ in frame #1, created by main (sys-preadv_pwritev.c:15)
+
+Warning: invalid file descriptor -1 in syscall pwritev()
+Syscall param preadv(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:59)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv(vector) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:60)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:61)
+ Address 0x........ is 0 bytes inside a block of size 8 alloc'd
+   at 0x........: malloc (vg_replace_malloc.c:...)
+   by 0x........: main (sys-preadv_pwritev.c:48)
+
+Syscall param preadv(vector) points to uninitialised byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:62)
+ Address 0x........ is on thread 1's stack
+ in frame #1, created by main (sys-preadv_pwritev.c:15)
+
+Warning: invalid file descriptor -1 in syscall preadv()
+Syscall param pwritev(vector[...]) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:67)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+Syscall param preadv(vector[...]) points to unaddressable byte(s)
+   ...
+   by 0x........: main (sys-preadv_pwritev.c:68)
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+
+HEAP SUMMARY:
+    in use at exit: 8 bytes in 1 blocks
+  total heap usage: 1 allocs, 0 frees, 8 bytes allocated
+
+For a detailed leak analysis, rerun with: --leak-check=full
+
+Use --track-origins=yes to see where uninitialised values come from
+For lists of detected and suppressed errors, rerun with: -s
+ERROR SUMMARY: 10 errors from 10 contexts (suppressed: 0 from 0)
