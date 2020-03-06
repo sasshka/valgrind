@@ -28,7 +28,8 @@ EXTRA_DIST = \
 	proc-auxv.vgtest proc-auxv.stderr.exp getregset.vgtest \
 	getregset.stderr.exp getregset.stdout.exp \
 	sys-preadv_pwritev.vgtest sys-preadv_pwritev.stderr.exp \
-	sys-preadv2_pwritev2.vgtest sys-preadv2_pwritev2.stderr.exp
+	sys-preadv2_pwritev2.vgtest sys-preadv2_pwritev2.stderr.exp \
+	sys-execveat.vgtest
 
 check_PROGRAMS = \
 	brk \
@@ -47,7 +48,8 @@ check_PROGRAMS = \
 	syslog-syscall \
 	sys-statx \
 	timerfd-syscall \
-	proc-auxv
+	proc-auxv \
+	sys-execveat
 
 if HAVE_AT_FDCWD
 check_PROGRAMS += sys-openat
@@ -63,6 +65,10 @@ endif
 
 if HAVE_PREADV2_PWRITEV2
         check_PROGRAMS += sys-preadv2_pwritev2
+endif
+
+if HAVE_EXECVEAT
+        check_PROGRAMS += sys-execveat
 endif
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)

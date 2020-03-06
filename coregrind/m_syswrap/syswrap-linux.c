@@ -13123,6 +13123,70 @@ POST(sys_io_uring_register)
 {
 }
 
+PRE(sys_execveat)
+{
+     PRINT("sys_execveat ( %lu, %#lx(%s), %#lx, %#lx, %lu", ARG1, ARG2, (char*)ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(vki_off_t, "execveat",
+                int, fd, char *, filename, char **, argv, char **, envp, int, flags);
+   PRE_MEM_RASCIIZ( "execveat(filename)", ARG2);
+
+#if !defined(__NR_execveat)
+   SET_STATUS_Failure(VKI_ENOSYS);
+   return;
+#endif
+
+   char *path = (char*) ARG2;
+   Addr arg_2    = ARG3;
+   Addr arg_3    = ARG4;
+   const HChar   *buf;
+   HChar         *abs_path;
+   Bool check_at_symlink = False;
+
+   if (ML_(safe_to_deref) (path, 1)) {
+       /* If pathname is absolute, we'll ignore dirfd
+        * and just pass the pathname, try to determine
+        * the absolute path otherwise. */
+       if (VG_(strcmp)(path, "/") == 0) {
+           /* Check dirfd is a valid fd. */
+           if (!ML_(fd_allowed)(ARG1, "execveat", tid, False)) {
+               SET_STATUS_Failure( VKI_EBADF );
+               return;
+           }
+           /* If pathname is empty and AT_EMPTY_PATH is
+              set then dirfd describes the whole path. */
+           if (path[0] == '\0' && (ARG5 & VKI_AT_EMPTY_PATH)) {
+               if (VG_(resolve_filename)(ARG1, &buf))
+                   VG_(strcpy)(path, buf);
+           }
+           else if (ARG1 == VKI_AT_FDCWD) {
+               check_at_symlink = True;
+           } else
+               if (ARG5 & VKI_AT_SYMLINK_NOFOLLOW)
+                   check_at_symlink = True;
+               else if (VG_(resolve_filename)(ARG1, &buf)) {
+                   VG_(sprintf)(abs_path, "%s/%s", buf, path);
+                   path = abs_path;
+               }
+               else
+                   path = NULL;
+           if (check_at_symlink) {
+               struct vg_stat statbuf;
+               SysRes statres;
+
+               statres = VG_(stat)(path, &statbuf);
+               if (sr_isError(statres) || VKI_S_ISLNK(statbuf.mode)) {
+                   SET_STATUS_Failure( VKI_ELOOP );
+                   return;
+               }
+           }
+       }
+   }
+
+   handle_pre_sys_execve(tid, status, (Addr) path, arg_2, arg_3, 1);
+
+}
+
+
 #undef PRE
 #undef POST
 
