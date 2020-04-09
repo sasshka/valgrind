@@ -1,0 +1,2 @@
+prog: sys-execveat
+vgopts: -q
