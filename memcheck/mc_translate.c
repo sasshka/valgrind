@@ -477,56 +477,6 @@ static Bool sameKindedAtoms ( IRAtom* a1, IRAtom* a2 )
    return False;
 }
 
-
-/*------------------------------------------------------------*/
-/*--- Type management                                      ---*/
-/*------------------------------------------------------------*/
-
-/* Shadow state is always accessed using integer types.  This returns
-   an integer type with the same size (as per sizeofIRType) as the
-   given type.  The only valid shadow types are Bit, I8, I16, I32,
-   I64, I128, V128, V256. */
-
-static IRType shadowTypeV ( IRType ty )
-{
-   switch (ty) {
-      case Ity_I1:
-      case Ity_I8:
-      case Ity_I16:
-      case Ity_I32: 
-      case Ity_I64: 
-      case Ity_I128: return ty;
-      case Ity_F16:  return Ity_I16;
-      case Ity_F32:  return Ity_I32;
-      case Ity_D32:  return Ity_I32;
-      case Ity_F64:  return Ity_I64;
-      case Ity_D64:  return Ity_I64;
-      case Ity_F128: return Ity_I128;
-      case Ity_D128: return Ity_I128;
-      case Ity_V128: return Ity_V128;
-      case Ity_V256: return Ity_V256;
-      default: ppIRType(ty); 
-               VG_(tool_panic)("memcheck:shadowTypeV");
-   }
-}
-
-/* Produce a 'defined' value of the given shadow type.  Should only be
-   supplied shadow types (Bit/I8/I16/I32/UI64). */
-static IRExpr* definedOfType ( IRType ty ) {
-   switch (ty) {
-      case Ity_I1:   return IRExpr_Const(IRConst_U1(False));
-      case Ity_I8:   return IRExpr_Const(IRConst_U8(0));
-      case Ity_I16:  return IRExpr_Const(IRConst_U16(0));
-      case Ity_I32:  return IRExpr_Const(IRConst_U32(0));
-      case Ity_I64:  return IRExpr_Const(IRConst_U64(0));
-      case Ity_I128: return i128_const_zero();
-      case Ity_V128: return IRExpr_Const(IRConst_V128(0x0000));
-      case Ity_V256: return IRExpr_Const(IRConst_V256(0x00000000));
-      default:       VG_(tool_panic)("memcheck:definedOfType");
-   }
-}
-
-
 /*------------------------------------------------------------*/
 /*--- Constructing IR fragments                            ---*/
 /*------------------------------------------------------------*/
@@ -587,6 +537,68 @@ static IRAtom* assignNew ( HChar cat, MCEnv* mce, IRType ty, IRExpr* e )
    assign(cat, mce, t, e);
    return mkexpr(t);
 }
+
+#ifdef AVX_512
+#include "mc_translate_AVX512.c"
+#endif
+
+
+/*------------------------------------------------------------*/
+/*--- Type management                                      ---*/
+/*------------------------------------------------------------*/
+
+/* Shadow state is always accessed using integer types.  This returns
+   an integer type with the same size (as per sizeofIRType) as the
+   given type.  The only valid shadow types are Bit, I8, I16, I32,
+   I64, I128, V128, V256. */
+
+static IRType shadowTypeV ( IRType ty )
+{
+   switch (ty) {
+      case Ity_I1:
+      case Ity_I8:
+      case Ity_I16:
+      case Ity_I32:
+      case Ity_I64:
+      case Ity_I128: return ty;
+      case Ity_F16:  return Ity_I16;
+      case Ity_F32:  return Ity_I32;
+      case Ity_D32:  return Ity_I32;
+      case Ity_F64:  return Ity_I64;
+      case Ity_D64:  return Ity_I64;
+      case Ity_F128: return Ity_I128;
+      case Ity_D128: return Ity_I128;
+      case Ity_V128: return Ity_V128;
+      case Ity_V256: return Ity_V256;
+#ifdef AVX_512
+      default:       return shadowTypeV_512(ty);
+#else
+      default: ppIRType(ty);
+               VG_(tool_panic)("memcheck:shadowTypeV");
+#endif
+   }
+}
+
+/* Produce a 'defined' value of the given shadow type.  Should only be
+   supplied shadow types (Bit/I8/I16/I32/UI64). */
+static IRExpr* definedOfType ( IRType ty ) {
+   switch (ty) {
+      case Ity_I1:   return IRExpr_Const(IRConst_U1(False));
+      case Ity_I8:   return IRExpr_Const(IRConst_U8(0));
+      case Ity_I16:  return IRExpr_Const(IRConst_U16(0));
+      case Ity_I32:  return IRExpr_Const(IRConst_U32(0));
+      case Ity_I64:  return IRExpr_Const(IRConst_U64(0));
+      case Ity_I128: return i128_const_zero();
+      case Ity_V128: return IRExpr_Const(IRConst_V128(0x0000));
+      case Ity_V256: return IRExpr_Const(IRConst_V256(0x00000000));
+#ifdef AVX_512
+      default:       return definedOfType_512(ty);
+#else
+      default:       VG_(tool_panic)("memcheck:definedOfType");
+#endif
+   }
+}
+
 
 
 /*------------------------------------------------------------*/
@@ -719,9 +731,13 @@ static IRAtom* mkUifU ( MCEnv* mce, IRType vty, IRAtom* a1, IRAtom* a2 ) {
       case Ity_I128: return mkUifU128(mce, a1, a2);
       case Ity_V128: return mkUifUV128(mce, a1, a2);
       case Ity_V256: return mkUifUV256(mce, a1, a2);
+#ifdef AVX_512
+      default:       return mkUifU_512(mce, vty, a1, a2);
+#else
       default:
          VG_(printf)("\n"); ppIRType(vty); VG_(printf)("\n");
          VG_(tool_panic)("memcheck:mkUifU");
+#endif
    }
 }
 
@@ -1039,8 +1055,12 @@ static IRAtom* mkPCastTo( MCEnv* mce, IRType dst_ty, IRAtom* vbits )
          break;
       }
       default:
+#ifdef AVX_512
+         tmp1 = CollapseTo1( mce, vbits);
+#else
          ppIRType(src_ty);
          VG_(tool_panic)("mkPCastTo(1)");
+#endif
    }
    tl_assert(tmp1);
    /* Now widen up to the dst type. */
@@ -1474,7 +1494,7 @@ static void setHelperAnns ( MCEnv* mce, IRDirty* di ) {
    This routine does not generate code to check the definedness of
    |guard|.  The caller is assumed to have taken care of that already.
 */
-static void complainIfUndefined ( MCEnv* mce, IRAtom* atom, IRExpr *guard )
+void complainIfUndefined ( MCEnv* mce, IRAtom* atom, IRExpr *guard )
 {
    IRAtom*  vatom;
    IRType   ty;
@@ -1837,7 +1857,6 @@ IRExpr* shadow_GETI ( MCEnv* mce,
 /* Lazy propagation of undefinedness from two values, resulting in the
    specified shadow type. 
 */
-static
 IRAtom* mkLazy2 ( MCEnv* mce, IRType finalVty, IRAtom* va1, IRAtom* va2 )
 {
    IRAtom* at;
@@ -3269,8 +3288,13 @@ IRAtom* expr2vbits_Qop ( MCEnv* mce,
       case Iop_Rotx64:
          return mkLazy4(mce, Ity_I64, vatom1, vatom2, vatom3, vatom4);
       default:
+#ifdef AVX_512
+         return expr2vbits_Qop_EVEX(mce, op, atom3, atom4,
+               vatom1, vatom2, vatom3, vatom4);
+#else
          ppIROp(op);
          VG_(tool_panic)("memcheck:expr2vbits_Qop");
+#endif
    }
 }
 
@@ -3409,11 +3433,13 @@ IRAtom* expr2vbits_Triop ( MCEnv* mce,
                           binop(Iop_PackEvenLanes32x4,
                                 unary64Fx2_w_rm(mce, vatom1, vatom2),
                                 unary64Fx2_w_rm(mce, vatom1, vatom3)));
-
-
       default:
+#ifdef AVX_512
+         return expr2vbits_Triop_EVEX(mce, op, atom3, vatom1, vatom2, vatom3);
+#else
          ppIROp(op);
          VG_(tool_panic)("memcheck:expr2vbits_Triop");
+#endif
    }
 }
 
@@ -4909,8 +4935,12 @@ IRAtom* expr2vbits_Binop ( MCEnv* mce,
       }
 
       default:
+#ifdef AVX_512
+         return expr2vbits_Binop_EVEX( mce, op, atom1, atom2, vatom1, vatom2 );
+#else
          ppIROp(op);
          VG_(tool_panic)("memcheck:expr2vbits_Binop");
+#endif
    }
 }
 
@@ -5332,8 +5362,12 @@ IRExpr* expr2vbits_Unop ( MCEnv* mce, IROp op, IRAtom* atom )
 
       case Iop_I64UtoF32:
       default:
+#ifdef AVX_512
+         return expr2vbits_Unop_EVEX(mce, op, vatom);
+#else
          ppIROp(op);
          VG_(tool_panic)("memcheck:expr2vbits_Unop");
+#endif
    }
 }
 
@@ -5374,6 +5408,12 @@ IRAtom* expr2vbits_Load_WRK ( MCEnv* mce,
 
    if (end == Iend_LE) {
       switch (ty) {
+#ifdef AVX_512
+         case Ity_V512: helper = &MC_(helperc_LOADV512);
+                        hname = "MC_(helperc_LOADV512)";
+                        ret_via_outparam = True;
+                        break;
+#endif
          case Ity_V256: helper = &MC_(helperc_LOADV256le);
                         hname = "MC_(helperc_LOADV256le)";
                         ret_via_outparam = True;
@@ -5500,6 +5540,9 @@ IRAtom* expr2vbits_Load ( MCEnv* mce,
       case Ity_I64:
       case Ity_V128:
       case Ity_V256:
+#ifdef AVX_512
+      case Ity_V512:
+#endif
          return expr2vbits_Load_WRK(mce, end, ty, addr, bias, guard);
       default:
          VG_(tool_panic)("expr2vbits_Load");
@@ -5786,6 +5829,13 @@ void do_shadow_Store ( MCEnv* mce,
 
    ty = typeOfIRExpr(mce->sb->tyenv, vdata);
 
+#ifdef AVX_512
+   if (UNLIKELY(ty == Ity_V512)) {
+      do_shadow_Store_512(mce, end, addr, bias, data, vdata, guard);
+      return;
+   }
+#endif
+
    // If we're not doing undefined value checking, pretend that this value
    // is "all valid".  That lets Vex's optimiser remove some of the V bit
    // shadow computation ops that precede it.
@@ -5850,7 +5900,7 @@ void do_shadow_Store ( MCEnv* mce,
       }
    }
 
-   if (UNLIKELY(ty == Ity_V256)) {
+    if (UNLIKELY((ty == Ity_V256))) {
 
       /* V256-bit case -- phrased in terms of 64 bit units (Qs), with
          Q3 being the most significant lane. */
@@ -6925,6 +6975,11 @@ static IRAtom* gen_guarded_load_b ( MCEnv* mce, Int szB,
       case 32: hFun  = (void*)&MC_(helperc_b_load32);
                hName = "MC_(helperc_b_load32)";
                break;
+#ifdef AVX_512
+      case 64: hFun  = (void*)&MC_(helperc_b_load64);
+               hName = "MC_(helperc_b_load64)";
+               break;
+#endif
       default:
          VG_(printf)("mc_translate.c: gen_load_b: unhandled szB == %d\n", szB);
          tl_assert(0);
@@ -7045,6 +7100,11 @@ static void gen_store_b ( MCEnv* mce, Int szB,
       case 32: hFun  = (void*)&MC_(helperc_b_store32);
                hName = "MC_(helperc_b_store32)";
                break;
+#ifdef AVX_512
+      case 64: hFun  = (void*)&MC_(helperc_b_store64);
+               hName = "MC_(helperc_b_store64)";
+               break;
+#endif
       default:
          tl_assert(0);
    }
@@ -7940,6 +8000,9 @@ static Bool isBogusAtom ( IRAtom* at )
       case Ico_F64i: return False;
       case Ico_V128: return False;
       case Ico_V256: return False;
+#ifdef AVX_512
+      case Ico_V512: return False;
+#endif
       default: ppIRExpr(at); tl_assert(0);
    }
    /* VG_(printf)("%llx\n", n); */

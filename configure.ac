@@ -2892,6 +2892,27 @@ AC_MSG_RESULT([no])
 
 AM_CONDITIONAL(BUILD_AVX2_TESTS, test x$ac_have_as_avx2 = xyes)
 
+# does the x86/amd64 assembler understand AVX512 instructions?
+# Note, this doesn't generate a C-level symbol. It generates
+# an automake-level symbol (BUILD_AVX512_TESTS), used in test Makefile.am's
+AC_MSG_CHECKING([if x86/amd64 assembler speaks AVX512])
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
+  do { long long int x;
+   __asm__ __volatile__(
+      "vpsravd (%%rsp), %%zmm8, %%zmm7" : : : "xmm7", "xmm8" );
+   __asm__ __volatile__(
+      "vpaddb %%zmm6,%%zmm7,%%zmm8" : : : "xmm6","xmm7","xmm8"); }
+  while (0)
+]])], [
+ac_have_as_avx512=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_as_avx512=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL(BUILD_AVX512_TESTS, test x$ac_have_as_avx512 = xyes)
 
 # does the x86/amd64 assembler understand TSX instructions and
 # the XACQUIRE/XRELEASE prefixes?

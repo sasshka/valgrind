@@ -1,6 +1,7 @@
 
 PUB_HEADERS = 	pub/libvex_basictypes.h 		\
 		pub/libvex_ir.h				\
+		pub/libvex_ir_AVX512.h				\
 		pub/libvex.h				\
 		pub/libvex_trc_values.h			\
 		pub/libvex_emnote.h			\
@@ -21,10 +22,12 @@ PRIV_HEADERS = 	priv/host_x86_defs.h			\
 		priv/host_s390_defs.h			\
 		priv/host_mips_defs.h			\
 		priv/host_generic_maddf.h	        \
+		priv/host_generic_AVX512_ER.h 			\
 		priv/host_generic_regs.h	        \
 		priv/host_generic_simd64.h	        \
 		priv/host_generic_simd128.h	        \
 		priv/host_generic_simd256.h	        \
+		priv/host_generic_AVX512.h	        \
 		priv/main_globals.h			\
 		priv/main_util.h			\
 		priv/guest_generic_x87.h               	\
@@ -63,10 +66,12 @@ LIB_OBJS = 	priv/ir_defs.o                          \
 		priv/host_s390_isel.o			\
 		priv/host_mips_isel.o			\
 		priv/host_generic_maddf.o	        \
+		priv/intel-AVX512ER.o		        \
 		priv/host_generic_regs.o	        \
 		priv/host_generic_simd64.o	        \
 		priv/host_generic_simd128.o	        \
 		priv/host_generic_simd256.o	        \
+		priv/host_generic_simd512.o	        \
 		priv/host_generic_reg_alloc2.o		\
 		priv/guest_generic_x87.o	        \
 		priv/guest_generic_bb_to_IR.o		\
@@ -327,6 +332,10 @@ priv/host_generic_maddf.o: $(ALL_HEADERS) priv/host_generic_maddf.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/host_generic_maddf.o \
 					 -c priv/host_generic_maddf.c
 
+priv/intel-AVX512ER.o: $(ALL_HEADERS) priv/RECIP14.c priv/RECIP28EXP2.c
+	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/intel-AVX512ER.o \
+					 -c priv/RECIP14.c -c priv/RECIP28EXP2.c
+
 priv/host_generic_regs.o: $(ALL_HEADERS) priv/host_generic_regs.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/host_generic_regs.o \
 					 -c priv/host_generic_regs.c
@@ -342,6 +351,10 @@ priv/host_generic_simd128.o: $(ALL_HEADERS) priv/host_generic_simd128.c
 priv/host_generic_simd256.o: $(ALL_HEADERS) priv/host_generic_simd256.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/host_generic_simd256.o \
 					 -c priv/host_generic_simd256.c
+
+priv/host_generic_simd512.o: $(ALL_HEADERS) priv/host_generic_simd512.c
+	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/host_generic_simd512.o \
+					 -c priv/host_generic_simd512.c
 
 priv/host_generic_reg_alloc2.o: $(ALL_HEADERS) priv/host_generic_reg_alloc2.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/host_generic_reg_alloc2.o \

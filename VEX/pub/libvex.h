@@ -98,6 +98,7 @@ typedef
 #define VEX_HWCAPS_AMD64_RDTSCP (1<<9)  /* RDTSCP instruction */
 #define VEX_HWCAPS_AMD64_BMI    (1<<10) /* BMI1 instructions */
 #define VEX_HWCAPS_AMD64_AVX2   (1<<11) /* AVX2 instructions */
+#define VEX_HWCAPS_AMD64_AVX512 (1<<12) /* AVX512 instructions */
 #define VEX_HWCAPS_AMD64_RDRAND (1<<13) /* RDRAND instructions */
 #define VEX_HWCAPS_AMD64_F16C   (1<<14) /* F16C instructions */
 

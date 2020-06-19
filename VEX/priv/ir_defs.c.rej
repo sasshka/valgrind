@@ -1,0 +1,16 @@
+--- VEX/priv/ir_defs.c
++++ VEX/priv/ir_defs.c
+@@ -4274,8 +4307,11 @@ Bool isPlausibleIRType ( IRType ty )
+       case Ity_D32: case Ity_D64: case Ity_D128:
+       case Ity_V128: case Ity_V256:
+          return True;
+-      default:
+-         return False;
++#ifdef AVX_512
++      default: return isPlausibleIRType_AVX512(ty);
++#else
++      default: return False;
++#endif
+    }
+ }
+ 

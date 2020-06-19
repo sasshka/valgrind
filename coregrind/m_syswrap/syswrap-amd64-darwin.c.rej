@@ -1,0 +1,13 @@
+--- coregrind/m_syswrap/syswrap-amd64-darwin.c
++++ coregrind/m_syswrap/syswrap-amd64-darwin.c
+@@ -60,7 +60,9 @@
+ 
+ 
+ #include <mach/mach.h>
+-
++#ifdef AVX_512
++#include "syswrap-amd64-darwin_AVX512.h"
++#endif
+ static void x86_thread_state64_from_vex(x86_thread_state64_t *mach,
+                                         VexGuestAMD64State *vex)
+ {

@@ -267,10 +267,12 @@ noinst_HEADERS = \
 	m_gdbserver/target.h \
 	m_gdbserver/valgrind_low.h \
 	m_gdbserver/gdb/signals.h \
+	m_gdbserver/valgrind-low-amd64_AVX512.h \
 	m_initimg/priv_initimg_pathscan.h \
 	m_scheduler/priv_sema.h \
 	m_scheduler/priv_sched-lock.h \
 	m_scheduler/priv_sched-lock-impl.h \
+	m_scheduler/scheduler_AVX512.h \
 	m_sigframe/priv_sigframe.h \
 	m_syswrap/priv_types_n_macros.h \
 	m_syswrap/priv_syswrap-generic.h \
@@ -280,6 +282,7 @@ noinst_HEADERS = \
 	m_syswrap/priv_syswrap-solaris.h \
 	m_syswrap/priv_syswrap-main.h \
 	m_syswrap/priv_syswrap-xen.h \
+	m_syswrap/syswrap-amd64-darwin_AVX512.h \
 	m_ume/priv_ume.h \
 	vgdb.h
 
@@ -391,6 +394,7 @@ COREGRIND_SOURCES_COMMON = \
 	m_gdbserver/utils.c \
 	m_gdbserver/valgrind-low-x86.c \
 	m_gdbserver/valgrind-low-amd64.c \
+	m_gdbserver/valgrind-low-amd64_AVX512.c \
 	m_gdbserver/valgrind-low-arm.c \
 	m_gdbserver/valgrind-low-arm64.c \
 	m_gdbserver/valgrind-low-ppc32.c \
@@ -412,6 +416,7 @@ COREGRIND_SOURCES_COMMON = \
 	m_scheduler/sched-lock.c \
 	m_scheduler/sched-lock-generic.c \
 	m_scheduler/scheduler.c \
+	m_scheduler/scheduler_AVX512.c \
 	m_scheduler/sema.c \
 	m_sigframe/sigframe-common.c \
 	m_sigframe/sigframe-x86-linux.c \
@@ -460,6 +465,7 @@ COREGRIND_SOURCES_COMMON = \
 	m_syswrap/syswrap-nanomips-linux.c \
 	m_syswrap/syswrap-x86-darwin.c \
 	m_syswrap/syswrap-amd64-darwin.c \
+	m_syswrap/syswrap-amd64-darwin_AVX512.c \
 	m_syswrap/syswrap-xen.c \
 	m_syswrap/syswrap-x86-solaris.c \
 	m_syswrap/syswrap-amd64-solaris.c \
@@ -650,6 +656,9 @@ GDBSERVER_XML_FILES = \
 	m_gdbserver/64bit-avx-valgrind-s2.xml \
 	m_gdbserver/64bit-avx-valgrind-s1.xml \
 	m_gdbserver/64bit-avx.xml \
+	m_gdbserver/64bit-avx512-valgrind-s2.xml \
+	m_gdbserver/64bit-avx512-valgrind-s1.xml \
+	m_gdbserver/64bit-avx512.xml \
 	m_gdbserver/64bit-core-valgrind-s1.xml \
 	m_gdbserver/64bit-core-valgrind-s2.xml \
 	m_gdbserver/64bit-core.xml \

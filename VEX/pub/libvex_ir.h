@@ -3171,7 +3171,6 @@ extern void ppIRSB ( const IRSB* );
 /* Append an IRStmt to an IRSB */
 extern void addStmtToIRSB ( IRSB*, IRStmt* );
 
-
 /*---------------------------------------------------------------*/
 /*--- Helper functions for the IR                             ---*/
 /*---------------------------------------------------------------*/

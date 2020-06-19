@@ -1,0 +1,22 @@
+--- VEX/priv/guest_amd64_toIR.c
++++ VEX/priv/guest_amd64_toIR.c
+@@ -17892,13 +18024,17 @@ static Long dis_AESx ( const VexAbiInfo* vbi, Prefix pfx,
+          default: vassert(0);
+       }
+       DIP("%saes%s %s,%s%s%s\n", isAvx ? "v" : "", opsuf,
+-          (regNoL == 16 ? dis_buf : nameXMMReg(regNoL)),
++          (regNoL == DUMMY_REGISTER_NUM ? dis_buf : nameXMMReg(regNoL)),
+           nameXMMReg(regNoR),
+           (isAvx && opc != 0xDB) ? "," : "",
+           (isAvx && opc != 0xDB) ? nameXMMReg(rG) : "");
+    }
+-   if (isAvx)
++   if (isAvx) {
+       putYMMRegLane128( rG, 1, mkV128(0) );
++#ifdef AVX_512
++      putZMMRegLane256( rG, 1, mkV256(0) );
++#endif
++   }
+    return delta;
+ }
+ 

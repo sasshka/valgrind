@@ -34,6 +34,8 @@
 #ifndef __LIBVEX_PUB_GUEST_AMD64_H
 #define __LIBVEX_PUB_GUEST_AMD64_H
 
+#ifndef AVX_512
+
 #include "libvex_basictypes.h"
 #include "libvex_emnote.h"
 
@@ -185,7 +187,6 @@ typedef
 extern
 void LibVEX_GuestAMD64_initialise ( /*OUT*/VexGuestAMD64State* vex_state );
 
-
 /* Extract from the supplied VexGuestAMD64State structure the
    corresponding native %rflags value. */
 extern 
@@ -215,6 +216,10 @@ void LibVEX_GuestAMD64_fxsave ( /*IN*/VexGuestAMD64State* gst,
 extern
 VexEmNote LibVEX_GuestAMD64_fxrstor ( /*IN*/HWord fp_state,
                                       /*MOD*/VexGuestAMD64State* gst );
+
+#else /* #ifdef AVX_512 */
+#include "libvex_guest_amd_AVX512.h"
+#endif
 
 #endif /* ndef __LIBVEX_PUB_GUEST_AMD64_H */
 

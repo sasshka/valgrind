@@ -25,10 +25,14 @@
 
 #include <stdio.h>    // fprintf
 #include <stdlib.h>   // exit
+#include <string.h>   // memcpy
 #include "pub_tool_basics.h"   // STATIC_ASSERT
 #include "vtest.h"
 
 #define DEFOP(op,ukind) op, #op, ukind
+#ifdef AVX_512
+#include "irops_AVX512.h"
+#endif
 
 /* The opcodes appear in the same order here as in libvex_ir.h
    That is not necessary but helpful when supporting a new architecture.
@@ -1162,14 +1166,20 @@ static irop_t irops[] = {
 
 /* Force compile time failure in case libvex_ir.h::IROp was updated
    and the irops array is out of synch */
+
+#ifndef AVX_512
 STATIC_ASSERT \
       (sizeof irops / sizeof *irops == Iop_LAST - Iop_INVALID - 1);
+#endif
 
 /* Return a descriptor for OP, iff it exists and it is implemented
    for the current architecture. */
 irop_t *
 get_irop(IROp op)
 {
+#ifdef AVX_512
+   memcpy(irops + (sizeof irops / sizeof *irops), irops_AVX512, sizeof irops_AVX512/ sizeof *irops_AVX512);
+#endif
    unsigned i;
 
    for (i = 0; i < sizeof irops / sizeof *irops; ++i) {

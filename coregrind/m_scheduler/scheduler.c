@@ -94,6 +94,9 @@
 #include "pub_core_redir.h"
 #include "libvex_emnote.h"          // VexEmNote
 
+#ifdef AVX_512
+#include "scheduler_AVX512.h"
+#endif
 
 /* ---------------------------------------------------------------------
    Types and globals for the scheduler.
@@ -841,12 +844,17 @@ static void do_pre_run_checks ( volatile ThreadState* tst )
 #  if defined(VGA_amd64)
    /* amd64 YMM regs must form an array, ie, have no holes in
       between. */
-   vg_assert(
-      (offsetof(VexGuestAMD64State,guest_YMM16)
-       - offsetof(VexGuestAMD64State,guest_YMM0))
-      == (17/*#regs*/-1) * 32/*bytes per reg*/
-   );
-   vg_assert(VG_IS_16_ALIGNED(offsetof(VexGuestAMD64State,guest_YMM0)));
+#  ifdef AVX_512
+    do_pre_run_checks_AVX512( tst );
+#  else
+    vg_assert(
+       (offsetof(VexGuestAMD64State,guest_YMM16)
+        - offsetof(VexGuestAMD64State,guest_YMM0))
+       == (17/*#regs*/-1) * 32/*bytes per reg*/
+    );
+    vg_assert(VG_IS_16_ALIGNED(offsetof(VexGuestAMD64State,guest_YMM0)));
+#endif
+
    vg_assert(VG_IS_8_ALIGNED(offsetof(VexGuestAMD64State,guest_FPREG)));
    vg_assert(16 == offsetof(VexGuestAMD64State,guest_RAX));
    vg_assert(VG_IS_8_ALIGNED(offsetof(VexGuestAMD64State,guest_RAX)));

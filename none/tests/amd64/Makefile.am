@@ -29,6 +29,7 @@ EXTRA_DIST = \
 	avx-1.vgtest avx-1.stdout.exp avx-1.stderr.exp \
 	avx_estimate_insn.vgtest avx_estimate_insn.stdout.exp avx_estimate_insn.stderr.exp \
 	avx2-1.vgtest avx2-1.stdout.exp avx2-1.stderr.exp \
+	avx512.vgtest avx512.stdout.exp avx512.stderr.exp \
 	asorep.stderr.exp asorep.stdout.exp asorep.vgtest \
 	bmi.stderr.exp bmi.stdout.exp bmi.vgtest \
 	bt_flags.stderr.exp bt_flags.stdout.exp bt_flags.vgtest \
@@ -134,6 +135,11 @@ endif
 if BUILD_AVX2_TESTS
 if !COMPILER_IS_ICC
   check_PROGRAMS += avx2-1
+endif
+endif
+if BUILD_AVX512_TESTS
+if !COMPILER_IS_ICC
+  check_PROGRAMS += avx512
 endif
 endif
 if BUILD_SSSE3_TESTS

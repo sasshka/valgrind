@@ -966,7 +966,7 @@ Bool VG_(machine_get_hwcaps)( void )
 
 #elif defined(VGA_amd64)
    { Bool have_sse3, have_ssse3, have_cx8, have_cx16;
-     Bool have_lzcnt, have_avx, have_bmi, have_avx2;
+     Bool have_lzcnt, have_avx, have_bmi, have_avx2, have_avx512;
      Bool have_rdtscp, have_rdrand, have_f16c;
      UInt eax, ebx, ecx, edx, max_basic, max_extended;
      ULong xgetbv_0 = 0;
@@ -1072,13 +1072,15 @@ Bool VG_(machine_get_hwcaps)( void )
         have_rdtscp = (edx & (1<<27)) != 0; /* True => have RDTSVCP */
      }
 
-     /* Check for BMI1 and AVX2.  If we have AVX1 (plus OS support). */
+     /* Check for BMI1, AVX2 and AVX-512. If we have AVX1 (plus OS support). */
      have_bmi  = False;
      have_avx2 = False;
+     have_avx512 = False;
      if (have_avx && max_basic >= 7) {
         VG_(cpuid)(7, 0, &eax, &ebx, &ecx, &edx);
         have_bmi  = (ebx & (1<<3)) != 0; /* True => have BMI1 */
         have_avx2 = (ebx & (1<<5)) != 0; /* True => have AVX2 */
+        have_avx512 = (ebx & (1<<16)) != 0; /* True => have AVX-512 */
      }
 
      /* Sanity check for RDRAND and F16C.  These don't actually *need* AVX, but
@@ -1098,6 +1100,7 @@ Bool VG_(machine_get_hwcaps)( void )
                  | (have_avx    ? VEX_HWCAPS_AMD64_AVX    : 0)
                  | (have_bmi    ? VEX_HWCAPS_AMD64_BMI    : 0)
                  | (have_avx2   ? VEX_HWCAPS_AMD64_AVX2   : 0)
+                 | (have_avx512 ? VEX_HWCAPS_AMD64_AVX512 : 0)
                  | (have_rdtscp ? VEX_HWCAPS_AMD64_RDTSCP : 0)
                  | (have_f16c   ? VEX_HWCAPS_AMD64_F16C   : 0)
                  | (have_rdrand ? VEX_HWCAPS_AMD64_RDRAND : 0);

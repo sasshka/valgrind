@@ -32,7 +32,6 @@
 
 #define MC_(str)    VGAPPEND(vgMemCheck_,str)
 
-
 /* This is a private header file for use only within the
    memcheck/ directory. */
 
@@ -328,7 +327,11 @@ enum {
    MCPE_MAKE_STACK_UNINIT_128_NO_O_ALIGNED_8,
    MCPE_MAKE_STACK_UNINIT_128_NO_O_SLOWCASE,
    /* Do not add enumerators past this line. */
-   MCPE_LAST
+#ifdef AVX_512
+   MCPE_LAST_NOT_EVEX,
+#else
+   MCPE_LAST,
+#endif
 };
 
 extern ULong MC_(event_ctr)[MCPE_LAST];
@@ -344,7 +347,9 @@ extern ULong MC_(event_ctr)[MCPE_LAST];
 
 #endif   /* MC_PROFILE_MEMORY */
 
-
+#ifdef AVX_512
+#include "mc_include_AVX512.h"
+#endif
 /*------------------------------------------------------------*/
 /*--- V and A bits (Victoria & Albert ?)                   ---*/
 /*------------------------------------------------------------*/
@@ -775,6 +780,9 @@ VG_REGPARM(2) void MC_(helperc_STOREV16be) ( Addr, UWord );
 VG_REGPARM(2) void MC_(helperc_STOREV16le) ( Addr, UWord );
 VG_REGPARM(2) void MC_(helperc_STOREV8)    ( Addr, UWord );
 
+#ifdef AVX_512
+VG_REGPARM(2) void  MC_(helperc_LOADV512)   ( /*OUT*/V512*, Addr );
+#endif
 VG_REGPARM(2) void  MC_(helperc_LOADV256be) ( /*OUT*/V256*, Addr );
 VG_REGPARM(2) void  MC_(helperc_LOADV256le) ( /*OUT*/V256*, Addr );
 VG_REGPARM(2) void  MC_(helperc_LOADV128be) ( /*OUT*/V128*, Addr );

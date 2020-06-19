@@ -1,13 +1,13 @@
 
 /*--------------------------------------------------------------------*/
-/*--- Utilities for inner Valgrind                pub_core_inner.h ---*/
+/*--- Utilities for inner Valgrind                  libvex_inner.h ---*/
 /*--------------------------------------------------------------------*/
 
 /*
    This file is part of Valgrind, a dynamic binary instrumentation
    framework.
 
-   Copyright (C) 2012-2017 Philippe Waroquiers
+   Copyright (C) 2017-2017 Philippe Waroquiers
       philippe.waroquiers@skynet.be
 
    This program is free software; you can redistribute it and/or
@@ -26,13 +26,45 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-#ifndef __PUB_CORE_INNER_H
-#define __PUB_CORE_INNER_H
+#ifndef __LIBVEX_INNER_H
+#define __LIBVEX_INNER_H
 
-// For usage and purpose, see libvex_inner.h
-#include "libvex_inner.h"
+//--------------------------------------------------------------------
+// PURPOSE: This header should be imported by every  file in Valgrind
+// which needs specific behaviour when running as an "inner" Valgrind.
+// Valgrind can self-host itself (i.e. Valgrind can run Valgrind) :
+// The outer Valgrind executes the inner Valgrind.
+// For more details, see README_DEVELOPPERS.
+//--------------------------------------------------------------------
 
-#endif   // __PUB_CORE_INNER_H
+#include "config.h"
+
+// The code of the inner Valgrind (core or tool code) contains client
+// requests (e.g. from helgrind.h, memcheck.h, ...) to help the
+// outer Valgrind finding (relevant) errors in the inner Valgrind.
+// Such client requests should only be compiled in for an inner Valgrind.
+// Use the macro INNER_REQUEST to allow a central enabling/disabling
+// of these client requests.
+#if defined(ENABLE_INNER)
+
+// By default, the inner Valgrind annotates various actions to help
+// the outer tool (memcheck or helgrind).
+// Undefine the below to have an inner Valgrind without any annotation.
+#define ENABLE_INNER_CLIENT_REQUEST 1
+
+#if defined(ENABLE_INNER_CLIENT_REQUEST)
+#define INNER_REQUEST(__zza)  __zza
+#else
+#define INNER_REQUEST(__zza)  do {} while (0)
+#endif
+
+#else
+
+#define INNER_REQUEST(__zza)  do {} while (0)
+
+#endif
+
+#endif   // __LIBVEX_INNER_H
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/

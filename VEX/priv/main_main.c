@@ -70,6 +70,10 @@
 
 #include "host_generic_simd128.h"
 
+#ifdef AVX_512
+#include "main_main_AVX512.h"
+#endif
+
 /* For each architecture <arch>, we define 2 macros:
    <arch>FN that has as argument a pointer (typically to a function
             or the return value of a function).
@@ -648,6 +652,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
 
    vexAllocSanityCheck();
 
+#ifndef AVX_512
    /* Clean it up, hopefully a lot. */
    irsb = do_iropt_BB ( irsb, specHelper, preciseMemExnsFn, *pxControl,
                               vta->guest_bytes_addr,
@@ -669,6 +674,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
    }
 
    vexAllocSanityCheck();
+#endif
 
    /* Get the thing instrumented. */
    if (vta->instrument1)
@@ -1185,6 +1191,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
          vex_printf("\n\n");
       }
       if (UNLIKELY(out_used + j > vta->host_bytes_size)) {
+         vex_printf("out_used + j > vta->host_bytes_size\n");
          vexSetAllocModeTEMP_and_clear();
          vex_traceflags = 0;
          res->status = VexTransOutputFull;
@@ -1631,7 +1638,7 @@ static const HChar* show_hwcaps_x86 ( UInt hwcaps )
    return buf;
 }
 
-static const HChar* show_hwcaps_amd64 ( UInt hwcaps )
+const HChar* show_hwcaps_amd64 ( UInt hwcaps )
 {
    static const HChar prefix[] = "amd64";
    static const struct {
@@ -1645,6 +1652,7 @@ static const HChar* show_hwcaps_amd64 ( UInt hwcaps )
       { VEX_HWCAPS_AMD64_SSSE3,  "ssse3"  },
       { VEX_HWCAPS_AMD64_AVX,    "avx"    },
       { VEX_HWCAPS_AMD64_AVX2,   "avx2"   },
+      { VEX_HWCAPS_AMD64_AVX512, "avx512" },
       { VEX_HWCAPS_AMD64_BMI,    "bmi"    },
       { VEX_HWCAPS_AMD64_F16C,   "f16c"   },
       { VEX_HWCAPS_AMD64_RDRAND, "rdrand" },
@@ -1917,7 +1925,8 @@ static const HChar* show_hwcaps ( VexArch arch, UInt hwcaps )
 
 /* To be used to complain about hwcaps we cannot handle */
 __attribute__((noreturn))
-static void invalid_hwcaps ( VexArch arch, UInt hwcaps, const HChar *message )
+//static
+void invalid_hwcaps ( VexArch arch, UInt hwcaps, const HChar *message )
 {
    vfatal("\nVEX: %s"
           "     Found: %s\n", message, show_hwcaps(arch, hwcaps));
@@ -1976,6 +1985,9 @@ static void check_hwcaps ( VexArch arch, UInt hwcaps )
          if (have_bmi && !have_avx)
             invalid_hwcaps(arch, hwcaps,
                            "Support for BMI requires AVX capabilities\n");
+#ifdef AVX_512
+         check_hwcaps_AVX512(arch, hwcaps);
+#endif
          return;
       }
 

@@ -1,0 +1,83 @@
+--- memcheck/mc_translate.c
++++ memcheck/mc_translate.c
+@@ -477,56 +477,6 @@ static Bool sameKindedAtoms ( IRAtom* a1, IRAtom* a2 )
+    return False;
+ }
+ 
+-
+-/*------------------------------------------------------------*/
+-/*--- Type management                                      ---*/
+-/*------------------------------------------------------------*/
+-
+-/* Shadow state is always accessed using integer types.  This returns
+-   an integer type with the same size (as per sizeofIRType) as the
+-   given type.  The only valid shadow types are Bit, I8, I16, I32,
+-   I64, I128, V128, V256. */
+-
+-static IRType shadowTypeV ( IRType ty )
+-{
+-   switch (ty) {
+-      case Ity_I1:
+-      case Ity_I8:
+-      case Ity_I16:
+-      case Ity_I32:
+-      case Ity_I64:
+-      case Ity_I128: return ty;
+-      case Ity_F16:  return Ity_I16;
+-      case Ity_F32:  return Ity_I32;
+-      case Ity_D32:  return Ity_I32;
+-      case Ity_F64:  return Ity_I64;
+-      case Ity_D64:  return Ity_I64;
+-      case Ity_F128: return Ity_I128;
+-      case Ity_D128: return Ity_I128;
+-      case Ity_V128: return Ity_V128;
+-      case Ity_V256: return Ity_V256;
+-      default: ppIRType(ty);
+-               VG_(tool_panic)("memcheck:shadowTypeV");
+-   }
+-}
+-
+-/* Produce a 'defined' value of the given shadow type.  Should only be
+-   supplied shadow types (Bit/I8/I16/I32/UI64). */
+-static IRExpr* definedOfType ( IRType ty ) {
+-   switch (ty) {
+-      case Ity_I1:   return IRExpr_Const(IRConst_U1(False));
+-      case Ity_I8:   return IRExpr_Const(IRConst_U8(0));
+-      case Ity_I16:  return IRExpr_Const(IRConst_U16(0));
+-      case Ity_I32:  return IRExpr_Const(IRConst_U32(0));
+-      case Ity_I64:  return IRExpr_Const(IRConst_U64(0));
+-      case Ity_I128: return i128_const_zero();
+-      case Ity_V128: return IRExpr_Const(IRConst_V128(0x0000));
+-      case Ity_V256: return IRExpr_Const(IRConst_V256(0x00000000));
+-      default:       VG_(tool_panic)("memcheck:definedOfType");
+-   }
+-}
+-
+-
+ /*------------------------------------------------------------*/
+ /*--- Constructing IR fragments                            ---*/
+ /*------------------------------------------------------------*/
+@@ -995,7 +1011,7 @@ static IRAtom* mkImproveORV256 ( MCEnv* mce, IRAtom* data, IRAtom* vbits )
+    is undefined (value == 1) the resulting expression has all bits set to
+    1. Otherwise, all bits are 0. */
+ 
+-static IRAtom* mkPCastTo( MCEnv* mce, IRType dst_ty, IRAtom* vbits )
++IRAtom* mkPCastTo( MCEnv* mce, IRType dst_ty, IRAtom* vbits )
+ {
+    IRType  src_ty;
+    IRAtom* tmp1;
+@@ -1140,9 +1160,13 @@ static IRAtom* mkPCastTo( MCEnv* mce, IRType dst_ty, IRAtom* vbits )
+          tmp1 = assignNew('V', mce, Ity_V256, binop(Iop_V128HLtoV256,
+                                                     tmp1, tmp1));
+          return tmp1;
+-      default:
++      default:
++#ifdef AVX_512
++         return Widen1to512(mce, dst_ty, tmp1);
++#else
+          ppIRType(dst_ty);
+          VG_(tool_panic)("mkPCastTo(2)");
++#endif
+    }
+ }
+ 

@@ -169,6 +169,9 @@
 #include "guest_generic_x87.h"
 #include "guest_amd64_defs.h"
 
+#ifdef AVX_512
+#include "guest_amd64_toIR_AVX512.h"
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Globals                                              ---*/
@@ -794,6 +797,9 @@ static Prefix clearSegBits ( Prefix p )
 
 /* Get the (inverted, hence back to "normal") VEX.vvvv field. */
 static UInt getVexNvvvv ( Prefix pfx ) {
+#ifdef AVX_512
+   return getEVexNvvvv(pfx);
+#endif
    UInt r = (UInt)pfx;
    r /= (UInt)PFX_VEXnV0; /* pray this turns into a shift */
    return r & 0xF;
@@ -1236,6 +1242,9 @@ static void putIRegRexB ( Int sz, Prefix pfx, UInt lo3bits, IRExpr* e )
 */
 static UInt gregOfRexRM ( Prefix pfx, UChar mod_reg_rm )
 {
+#ifdef AVX_512
+   return gregOfRexRM32(pfx, mod_reg_rm);
+#endif
    Int reg = (Int)( (mod_reg_rm >> 3) & 7 );
    reg += (pfx & PFX_REXR) ? 8 : 0;
    return reg;
@@ -1248,6 +1257,9 @@ static UInt gregOfRexRM ( Prefix pfx, UChar mod_reg_rm )
 */
 static UInt eregOfRexRM ( Prefix pfx, UChar mod_reg_rm )
 {
+#ifdef AVX_512
+   return eregOfRexRM32(pfx, mod_reg_rm);
+#endif
    Int rm;
    vassert(epartIsReg(mod_reg_rm));
    rm = (Int)(mod_reg_rm & 0x7);
@@ -1406,7 +1418,11 @@ static Int ymmGuestRegOffset ( UInt ymmreg )
       case 13: return OFFB_YMM13;
       case 14: return OFFB_YMM14;
       case 15: return OFFB_YMM15;
+#ifdef AVX_512
+      default: return ymmGuestRegOffsetEVEX(ymmreg);
+#else
       default: vpanic("ymmGuestRegOffset(amd64)");
+#endif
    }
 }
 
@@ -1604,6 +1620,9 @@ static void putYMMRegLoAndZU ( UInt ymmreg, IRExpr* e )
 {
    putYMMRegLane128( ymmreg, 0, e );
    putYMMRegLane128( ymmreg, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( ymmreg, 1, mkV256(0) );
+#endif
 }
 
 static IRExpr* mkAnd1 ( IRExpr* x, IRExpr* y )
@@ -2244,7 +2263,12 @@ static const HChar* nameXMMReg ( Int xmmreg )
          "%xmm4",  "%xmm5",  "%xmm6",  "%xmm7", 
          "%xmm8",  "%xmm9",  "%xmm10", "%xmm11", 
          "%xmm12", "%xmm13", "%xmm14", "%xmm15" };
-   if (xmmreg < 0 || xmmreg > 15) vpanic("nameXMMReg(amd64)");
+   if (xmmreg < 0 || xmmreg > 15) {
+#ifdef AVX_512
+      return nameXMMRegEVEX(xmmreg);
+#endif
+      vpanic("nameXMMReg(amd64)");
+   }
    return xmm_names[xmmreg];
 }
  
@@ -2277,7 +2301,12 @@ static const HChar* nameYMMReg ( Int ymmreg )
          "%ymm4",  "%ymm5",  "%ymm6",  "%ymm7", 
          "%ymm8",  "%ymm9",  "%ymm10", "%ymm11", 
          "%ymm12", "%ymm13", "%ymm14", "%ymm15" };
-   if (ymmreg < 0 || ymmreg > 15) vpanic("nameYMMReg(amd64)");
+   if (ymmreg < 0 || ymmreg > 15) {
+#ifdef AVX_512
+      return nameYMMRegEVEX(ymmreg);
+#endif
+      vpanic("nameYMMReg(amd64)");
+   }
    return ymm_names[ymmreg];
 }
 
@@ -2549,6 +2578,9 @@ IRTemp disAMode ( /*OUT*/Int* len,
       /* ! 0C */ case 0x0D: case 0x0E: case 0x0F:
          { UChar rm = toUChar(mod_reg_rm & 7);
            Long d   = getSDisp8(delta);
+#ifdef AVX_512
+           d *= getEVEXMult(pfx);
+#endif
            if (d == 0) {
               DIS(buf, "%s(%s)", segRegTxt(pfx), nameIRegRexB(8,pfx,rm));
            } else {
@@ -2693,6 +2725,9 @@ IRTemp disAMode ( /*OUT*/Int* len,
          UChar index_r = toUChar((sib >> 3) & 7);
          UChar base_r  = toUChar(sib & 7);
          Long d        = getSDisp8(delta+1);
+#ifdef AVX_512
+         d *= getEVEXMult(pfx);
+#endif
 
          if (index_r == R_RSP && 0==getRexX(pfx)) {
             DIS(buf, "%s%lld(%s)", segRegTxt(pfx), 
@@ -2801,6 +2836,9 @@ IRTemp disAVSIBMode ( /*OUT*/Int* len,
    UChar sib     = getUChar(delta+1);
    UChar scale   = toUChar((sib >> 6) & 3);
    UChar index_r = toUChar((sib >> 3) & 7);
+#ifdef AVX_512
+   index_r = get_reg_16_32(index_r);
+#endif
    UChar base_r  = toUChar(sib & 7);
    Long  d       = 0;
    /* correct since #(R13) == 8 + #(RBP) */
@@ -2812,6 +2850,11 @@ IRTemp disAVSIBMode ( /*OUT*/Int* len,
    if (ty == Ity_V128)
       vindex = nameXMMReg(*rI);
    else
+#ifdef AVX_512
+      if (ty == Ity_V512)
+         vindex = nameZMMReg(*rI);
+      else
+#endif
       vindex = nameYMMReg(*rI);
    *vscale = 1<<scale;
 
@@ -2838,6 +2881,9 @@ IRTemp disAVSIBMode ( /*OUT*/Int* len,
       break;
    case 1:
       d = getSDisp8(delta);
+#ifdef AVX_512
+      d *= getEVEXMult(pfx);
+#endif
       *len += 1;
       goto have_disp;
    case 2:
@@ -10392,6 +10438,9 @@ static Long dis_PSHUFD_32x8 ( const VexAbiInfo* vbi, Prefix pfx, Long delta )
                                  s[0 + ((order>>4)&3)],
                                  s[0 + ((order>>2)&3)],
                                  s[0 + ((order>>0)&3)] ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -10619,8 +10668,12 @@ static Long dis_CVTPS2PD_128 ( const VexAbiInfo* vbi, Prefix pfx,
 
    putXMMRegLane64F( rG, 1, unop(Iop_F32toF64, mkexpr(f32hi)) );
    putXMMRegLane64F( rG, 0, unop(Iop_F32toF64, mkexpr(f32lo)) );
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( rG, 1, mkV128(0));
+#ifdef AVX_512
+      putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
+   }
    return delta;
 }
 
@@ -10662,6 +10715,9 @@ static Long dis_CVTPS2PD_256 ( const VexAbiInfo* vbi, Prefix pfx,
    putYMMRegLane64F( rG, 2, unop(Iop_F32toF64, mkexpr(f32_2)) );
    putYMMRegLane64F( rG, 1, unop(Iop_F32toF64, mkexpr(f32_1)) );
    putYMMRegLane64F( rG, 0, unop(Iop_F32toF64, mkexpr(f32_0)) );
+#ifdef AVX_512
+   putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -10704,8 +10760,12 @@ static Long dis_CVTPD2PS_128 ( const VexAbiInfo* vbi, Prefix pfx,
    putXMMRegLane32F( rG, 1, CVT(t1) );
    putXMMRegLane32F( rG, 0, CVT(t0) );
 #  undef CVT
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+      putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
+   }
 
    return delta;
 }
@@ -10739,8 +10799,12 @@ static Long dis_CVTxPS2DQ_128 ( const VexAbiInfo* vbi, Prefix pfx,
    assign( rmode, r2zero ? mkU32((UInt)Irrm_ZERO)
                          : get_sse_roundingmode() );
    putXMMReg( rG, binop(Iop_F32toI32Sx4, mkexpr(rmode), mkexpr(argV)) );
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+      putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
+   }
 
    return delta;
 }
@@ -10774,6 +10838,9 @@ static Long dis_CVTxPS2DQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
    assign( rmode, r2zero ? mkU32((UInt)Irrm_ZERO)
                          : get_sse_roundingmode() );
    putYMMReg( rG,  binop(Iop_F32toI32Sx8, mkexpr(rmode), mkexpr(argV)) );
+#ifdef AVX_512
+  putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -10826,9 +10893,12 @@ static Long dis_CVTxPD2DQ_128 ( const VexAbiInfo* vbi, Prefix pfx,
    putXMMRegLane32( rG, 1, CVT(t1) );
    putXMMRegLane32( rG, 0, CVT(t0) );
 #  undef CVT
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( rG, 1, mkV128(0) );
-
+#ifdef AVX_512
+      putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
+   }
    return delta;
 }
 
@@ -10882,6 +10952,9 @@ static Long dis_CVTxPD2DQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
    putXMMRegLane32( rG, 0, CVT(t0) );
 #  undef CVT
    putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -10915,8 +10988,12 @@ static Long dis_CVTDQ2PS_128 ( const VexAbiInfo* vbi, Prefix pfx,
    assign( rmode, get_sse_roundingmode() );
    putXMMReg(rG, binop(Iop_I32StoF32x4, mkexpr(rmode), mkexpr(argV)));
 
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+      putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
+   }
 
    return delta;
 }
@@ -10946,6 +11023,9 @@ static Long dis_CVTDQ2PS_256 ( const VexAbiInfo* vbi, Prefix pfx,
 
    assign( rmode, get_sse_roundingmode() );
    putYMMReg(rG, binop(Iop_I32StoF32x8, mkexpr(rmode), mkexpr(argV)));
+#ifdef AVX_512
+   putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -11523,6 +11603,9 @@ static Long dis_PSHUFxW_256 ( const VexAbiInfo* vbi, Prefix pfx,
                                  xIsH ? sV64[2] : dVhi,
                                  xIsH ? dVlo : sV64[1],
                                  xIsH ? sV64[0] : dVlo ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -11595,8 +11678,12 @@ static Long dis_CVTDQ2PD_128 ( const VexAbiInfo* vbi, Prefix pfx,
       rG, 1, 
       unop(Iop_I32StoF64, unop(Iop_64HIto32, mkexpr(arg64)))
    );
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128(rG, 1, mkV128(0));
+#ifdef AVX_512
+      putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
+   }
    return delta;
 }
 
@@ -15256,6 +15343,9 @@ static Long dis_MOVDDUP_256 ( const VexAbiInfo* vbi, Prefix pfx,
    putYMMRegLane64( rG, 1, mkexpr(d0) );
    putYMMRegLane64( rG, 2, mkexpr(d1) );
    putYMMRegLane64( rG, 3, mkexpr(d1) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -15323,6 +15413,9 @@ static Long dis_MOVSxDUP_256 ( const VexAbiInfo* vbi, Prefix pfx,
                                 : mkV128from32s( s7, s7, s5, s5 ) );
    putYMMRegLane128( rG, 0, isL ? mkV128from32s( s2, s2, s0, s0 )
                                 : mkV128from32s( s3, s3, s1, s1 ) );
+#ifdef AVX_512
+   putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -15733,6 +15826,9 @@ static Long dis_PHADD_256 ( const VexAbiInfo* vbi, Prefix pfx, Long delta,
                           binop(opV64,
                                 binop(opCatE,mkexpr(d1),mkexpr(d0)),
                                 binop(opCatO,mkexpr(d1),mkexpr(d0)) ) ) ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -16732,6 +16828,9 @@ static Long dis_VBLENDV_256 ( const VexAbiInfo* vbi, Prefix pfx, Long delta,
    assign(vecIS4, getYMMReg(rIS4));
    IRTemp res = math_PBLENDVB_256( vecE, vecV, vecIS4, gran, opSAR128 );
    putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+   putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -16975,6 +17074,9 @@ static Long dis_VCVTPH2PS ( const VexAbiInfo* vbi, Prefix pfx,
 
    IRExpr* res = unop(is256bit ? Iop_F16toF32x8 : Iop_F16toF32x4, mkexpr(srcE));
    (is256bit ? putYMMReg : putYMMRegLoAndZU)(rG, res);
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -17059,6 +17161,9 @@ static Long dis_PMOVxXBW_256 ( const VexAbiInfo* vbi, Prefix pfx,
                    binop( Iop_ShlN16x16, res, mkU8(8) ), mkU8(8) );
 
    putYMMReg ( rG, res );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -17137,6 +17242,9 @@ static Long dis_PMOVxXWD_256 ( const VexAbiInfo* vbi, Prefix pfx,
                   binop(Iop_ShlN32x8, res, mkU8(16)), mkU8(16));
 
    putYMMReg ( rG, res );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -17206,6 +17314,9 @@ static Long dis_PMOVSXWQ_256 ( const VexAbiInfo* vbi, Prefix pfx, Long delta )
                          binop( Iop_64HLtoV128,
                                 unop( Iop_16Sto64, mkexpr(s1) ),
                                 unop( Iop_16Sto64, mkexpr(s0) ) ) ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -17281,6 +17392,9 @@ static Long dis_PMOVZXWQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
                                 mkexpr(zeroVec),
                                 binop( Iop_InterleaveLO16x8,
                                        mkexpr(zeroVec), mkexpr(srcVec) ) ) ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -17380,6 +17494,9 @@ static Long dis_PMOVxXDQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
    }
 
    putYMMReg ( rG, res );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -17470,6 +17587,9 @@ static Long dis_PMOVxXBD_256 ( const VexAbiInfo* vbi, Prefix pfx,
                   binop(Iop_ShlN32x8, res, mkU8(24)), mkU8(24));
 
    putYMMReg ( rG, res );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -17550,6 +17670,9 @@ static Long dis_PMOVSXBQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
                                 unop( Iop_16to8,
                                       unop( Iop_32to16,
                                             mkexpr(srcBytes) ) ) ) ) ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -17634,6 +17757,9 @@ static Long dis_PMOVZXBQ_256 ( const VexAbiInfo* vbi, Prefix pfx,
                                  binop( Iop_InterleaveLO8x16,
                                         mkexpr(zeroVec), mkexpr(srcVec) ) ) )
                  ) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -17677,6 +17803,13 @@ static Long dis_PHMINPOSUW_128 ( const VexAbiInfo* vbi, Prefix pfx,
    return delta;
 }
 
+#ifdef AVX_512
+Int DUMMY_REGISTER_NUM = 32;
+Int DUMMY_REGISTER_OFFSET = OFFB_ZMM32;
+#else
+Int DUMMY_REGISTER_NUM = 16;
+Int DUMMY_REGISTER_OFFSET = OFFB_YMM16;
+#endif
 
 static Long dis_AESx ( const VexAbiInfo* vbi, Prefix pfx,
                        Long delta, Bool isAvx, UChar opc )
@@ -17693,16 +17826,15 @@ static Long dis_AESx ( const VexAbiInfo* vbi, Prefix pfx,
       helper.  Since we can't do that, use a dirty
       helper to compute the results directly from the XMM regs in
       the guest state.  That means for the memory case, we need to
-      move the left operand into a pseudo-register (XMM16, let's
-      call it). */
+      move the left operand into a pseudo-register (XMM16/ZMM32). */
    if (epartIsReg(modrm)) {
       regNoL = eregOfRexRM(pfx, modrm);
       delta += 1;
    } else {
-      regNoL = 16; /* use XMM16 as an intermediary */
+      regNoL = DUMMY_REGISTER_NUM; /* use pseudo-register as an intermediary */
       addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 0 );
       /* alignment check needed ???? */
-      stmt( IRStmt_Put( OFFB_YMM16, loadLE(Ity_V128, mkexpr(addr)) ));
+      stmt( IRStmt_Put( DUMMY_REGISTER_OFFSET, loadLE(Ity_V128, mkexpr(addr)) ));
       delta += alen;
    }
 
@@ -17713,7 +17845,7 @@ static Long dis_AESx ( const VexAbiInfo* vbi, Prefix pfx,
       use of mkU64 rather than mkIRExpr_HWord implies the
       assumption that the host's word size is 64-bit. */
    UInt gstOffD = ymmGuestRegOffset(rG);
-   UInt gstOffL = regNoL == 16 ? OFFB_YMM16 : ymmGuestRegOffset(regNoL);
+   UInt gstOffL = regNoL == DUMMY_REGISTER_NUM ? DUMMY_REGISTER_OFFSET : ymmGuestRegOffset(regNoL);
    UInt gstOffR = ymmGuestRegOffset(regNoR);
    IRExpr*  opc4         = mkU64(opc);
    IRExpr*  gstOffDe     = mkU64(gstOffD);
@@ -17788,10 +17920,10 @@ static Long dis_AESKEYGENASSIST ( const VexAbiInfo* vbi, Prefix pfx,
       imm = getUChar(delta+1);
       delta += 1+1;
    } else {
-      regNoL = 16; /* use XMM16 as an intermediary */
+      regNoL = DUMMY_REGISTER_NUM; /* use pseudo-register as an intermediary */
       addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 1 );
       /* alignment check ???? . */
-      stmt( IRStmt_Put( OFFB_YMM16, loadLE(Ity_V128, mkexpr(addr)) ));
+      stmt( IRStmt_Put( DUMMY_REGISTER_OFFSET, loadLE(Ity_V128, mkexpr(addr)) ));
       imm = getUChar(delta+alen);
       delta += alen+1;
    }
@@ -17803,7 +17935,7 @@ static Long dis_AESKEYGENASSIST ( const VexAbiInfo* vbi, Prefix pfx,
    /* Round up the arguments.  Note that this is a kludge -- the
       use of mkU64 rather than mkIRExpr_HWord implies the
       assumption that the host's word size is 64-bit. */
-   UInt gstOffL = regNoL == 16 ? OFFB_YMM16 : ymmGuestRegOffset(regNoL);
+   UInt gstOffL = regNoL == DUMMY_REGISTER_NUM ? DUMMY_REGISTER_OFFSET : ymmGuestRegOffset(regNoL);
    UInt gstOffR = ymmGuestRegOffset(regNoR);
 
    IRExpr*  imme          = mkU64(imm & 0xFF);
@@ -17827,10 +17959,14 @@ static Long dis_AESKEYGENASSIST ( const VexAbiInfo* vbi, Prefix pfx,
    stmt( IRStmt_Dirty(d) );
 
    DIP("%saeskeygenassist $%x,%s,%s\n", isAvx ? "v" : "", (UInt)imm,
-       (regNoL == 16 ? dis_buf : nameXMMReg(regNoL)),
+       (regNoL == DUMMY_REGISTER_NUM ? dis_buf : nameXMMReg(regNoL)),
        nameXMMReg(regNoR));
-   if (isAvx)
+   if (isAvx) {
       putYMMRegLane128( regNoR, 1, mkV128(0) );
+#ifdef AVX_512
+      putZMMRegLane256( regNoR, 1, mkV256(0) );
+#endif
+   }
    return delta;
 }
 
@@ -18670,7 +18806,7 @@ static Long dis_PCMPxSTRx ( const VexAbiInfo* vbi, Prefix pfx,
       (which is clean).  Since we can't do that, use a dirty helper to
       compute the results directly from the XMM regs in the guest
       state.  That means for the memory case, we need to move the left
-      operand into a pseudo-register (XMM16, let's call it). */
+      operand into a pseudo-register (XMM16/ZMM32). */
    UChar modrm = getUChar(delta);
    if (epartIsReg(modrm)) {
       regNoL = eregOfRexRM(pfx, modrm);
@@ -18678,19 +18814,19 @@ static Long dis_PCMPxSTRx ( const VexAbiInfo* vbi, Prefix pfx,
       imm = getUChar(delta+1);
       delta += 1+1;
    } else {
-      regNoL = 16; /* use XMM16 as an intermediary */
+      regNoL = DUMMY_REGISTER_NUM; /* use pseudo-register as an intermediary */
       regNoR = gregOfRexRM(pfx, modrm);
       addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 1 );
       /* No alignment check; I guess that makes sense, given that
          these insns are for dealing with C style strings. */
-      stmt( IRStmt_Put( OFFB_YMM16, loadLE(Ity_V128, mkexpr(addr)) ));
+      stmt( IRStmt_Put( DUMMY_REGISTER_OFFSET, loadLE(Ity_V128, mkexpr(addr)) ));
       imm = getUChar(delta+alen);
       delta += alen+1;
    }
 
    /* Print the insn here, since dis_PCMPISTRI_3A doesn't do so
       itself. */
-   if (regNoL == 16) {
+   if (regNoL == DUMMY_REGISTER_NUM) {
       DIP("%spcmp%cstr%c $%x,%s,%s\n",
           isAvx ? "v" : "", isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
           (UInt)imm, dis_buf, nameXMMReg(regNoR));
@@ -18741,7 +18877,7 @@ static Long dis_PCMPxSTRx ( const VexAbiInfo* vbi, Prefix pfx,
    /* Round up the arguments.  Note that this is a kludge -- the use
       of mkU64 rather than mkIRExpr_HWord implies the assumption that
       the host's word size is 64-bit. */
-   UInt gstOffL = regNoL == 16 ? OFFB_YMM16 : ymmGuestRegOffset(regNoL);
+   UInt gstOffL = regNoL == DUMMY_REGISTER_NUM ? DUMMY_REGISTER_OFFSET : ymmGuestRegOffset(regNoL);
    UInt gstOffR = ymmGuestRegOffset(regNoR);
 
    IRExpr*  opc4_and_imm = mkU64((opc << 8) | (imm & 0xFF));
@@ -18786,8 +18922,12 @@ static Long dis_PCMPxSTRx ( const VexAbiInfo* vbi, Prefix pfx,
    }
 
    /* Zap the upper half of the dest reg as per AVX conventions. */
-   if (isxSTRM && isAvx)
+   if (isxSTRM && isAvx) {
       putYMMRegLane128(/*YMM*/0, 1, mkV128(0));
+#ifdef AVX_512
+      putZMMRegLane256( 0, 1, mkV256(0) );
+#endif
+   }
 
    stmt( IRStmt_Put(
             OFFB_CC_DEP1,
@@ -21659,7 +21799,11 @@ Long dis_ESC_0F (
                            IRConst_U64(guest_RIP_curr_instr),
                            OFFB_RIP
          ));
+#ifdef AVX_512
+         putIRegRAX(4, mkU32(0xFF));
+#else
          putIRegRAX(4, mkU32(7));
+#endif
          putIRegRDX(4, mkU32(0));
          return delta;
       }
@@ -21954,9 +22098,18 @@ Long dis_ESC_0F (
       void*        fAddr = NULL;
 
       if (haveF2orF3(pfx)) goto decode_failure;
-
+#ifdef AVX_512
       /* This isn't entirely correct, CPUID should depend on the VEX
          capabilities, not on the underlying CPU. See bug #324882. */
+      if ((archinfo->hwcaps & VEX_HWCAPS_AMD64_SSE3) &&
+            (archinfo->hwcaps & VEX_HWCAPS_AMD64_CX16) &&
+            (archinfo->hwcaps & VEX_HWCAPS_AMD64_AVX512)) {
+         fName = "amd64g_dirtyhelper_CPUID_avx512";
+         fAddr = &amd64g_dirtyhelper_CPUID_avx512;
+         /* This is a SKX-like machine */
+      }
+      else
+#endif
       if ((archinfo->hwcaps & VEX_HWCAPS_AMD64_SSSE3) &&
           (archinfo->hwcaps & VEX_HWCAPS_AMD64_CX16) &&
           (archinfo->hwcaps & VEX_HWCAPS_AMD64_AVX2)) {
@@ -23014,6 +23167,9 @@ static ULong dis_AVX256_shiftV_byE ( const VexAbiInfo* vbi,
    }
 
    putYMMReg( rG, mkexpr(g1) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -23125,6 +23281,10 @@ static ULong dis_AVX_var_shiftV_byE ( const VexAbiInfo* vbi,
          break;
       default: vassert(0);
    }
+
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -23241,6 +23401,9 @@ Long dis_AVX256_shiftE_to_V_imm( Prefix pfx,
    }
 
    putYMMReg( rD, mkexpr(e1) );
+#ifdef AVX_512
+   putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -23283,6 +23446,9 @@ static Long dis_AVX128_E_V_to_G_lo64 ( /*OUT*/Bool* uses_vvvv,
       delta = delta+alen;
    }
    putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    *uses_vvvv = True;
    return delta;
 }
@@ -23420,6 +23586,9 @@ static Long dis_AVX128_E_V_to_G_lo32 ( /*OUT*/Bool* uses_vvvv,
       delta = delta+alen;
    }
    putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    *uses_vvvv = True;
    return delta;
 }
@@ -23651,6 +23820,10 @@ Long dis_AVX256_cmp_V_E_to_G ( /*OUT*/Bool* uses_vvvv,
       putYMMReg( rG, mkexpr(plain) );
    }
 
+#ifdef AVX_512
+   putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
+
    *uses_vvvv = True;
    return delta;
 }
@@ -23785,6 +23958,9 @@ Long dis_VEX_NDS_256_AnySimdPfx_0F_WIG (
    }
 
    putYMMReg(rD, mkexpr(res));
+#ifdef AVX_512
+   putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
 
    *uses_vvvv = True;
    return delta;
@@ -23865,6 +24041,9 @@ Long dis_AVX256_E_to_G_unary ( /*OUT*/Bool* uses_vvvv,
    }
    res = opFn(arg);
    putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    *uses_vvvv = False;
    return delta;
 }
@@ -23895,6 +24074,9 @@ Long dis_AVX256_E_to_G_unary_all ( /*OUT*/Bool* uses_vvvv,
       DIP("%s %s,%s\n", opname, dis_buf, nameYMMReg(rG));
    }
    putYMMReg( rG, unop(op, mkexpr(arg)) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    *uses_vvvv = False;
    return delta;
 }
@@ -23934,6 +24116,9 @@ static Long dis_CVTDQ2PD_256 ( const VexAbiInfo* vbi, Prefix pfx,
            unop(Iop_ReinterpF64asI64, unop(Iop_I32StoF64, mkexpr(s0)))
         );
    putYMMReg(rG, res);
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -23972,6 +24157,9 @@ static Long dis_CVTPD2PS_256 ( const VexAbiInfo* vbi, Prefix pfx,
    putXMMRegLane32F( rG, 0, CVT(t0) );
 #  undef CVT
    putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
    return delta;
 }
 
@@ -24096,6 +24284,9 @@ Long dis_ESC_0F__VEX (
          /* FIXME: ALIGNMENT CHECK? */
          putXMMRegLane64( rG, 0, loadLE(Ity_I64, mkexpr(addr)) );
          putYMMRegLane128( rG, 1, mkexpr(z128) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          DIP("vmovsd %s,%s\n", dis_buf, nameXMMReg(rG));
          delta += alen;
          goto decode_success;
@@ -24131,6 +24322,9 @@ Long dis_ESC_0F__VEX (
          /* FIXME: ALIGNMENT CHECK? */
          putXMMRegLane32( rG, 0, loadLE(Ity_I32, mkexpr(addr)) );
          putYMMRegLane128( rG, 1, mkexpr(z128) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          DIP("vmovss %s,%s\n", dis_buf, nameXMMReg(rG));
          delta += alen;
          goto decode_success;
@@ -24179,11 +24373,17 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rG, getYMMReg( rE ));
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovupd %s,%s\n", nameYMMReg(rE), nameYMMReg(rG));
             delta += 1;
          } else {
             addr = disAMode ( &alen, vbi, pfx, delta, dis_buf, 0 );
             putYMMReg( rG, loadLE(Ity_V256, mkexpr(addr)) );
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovupd %s,%s\n", dis_buf, nameYMMReg(rG));
             delta += alen;
          }
@@ -24213,11 +24413,17 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rG, getYMMReg( rE ));
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovups %s,%s\n", nameYMMReg(rE), nameYMMReg(rG));
             delta += 1;
          } else {
             addr = disAMode ( &alen, vbi, pfx, delta, dis_buf, 0 );
             putYMMReg( rG, loadLE(Ity_V256, mkexpr(addr)) );
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovups %s,%s\n", dis_buf, nameYMMReg(rG));
             delta += alen;
          }
@@ -24312,6 +24518,9 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rE, getYMMReg(rG) );
+#ifdef AVX_512
+            putZMMRegLane256( rE, 1, mkV256(0) );
+#endif
             DIP("vmovupd %s,%s\n", nameYMMReg(rG), nameYMMReg(rE));
             delta += 1;
          } else {
@@ -24346,6 +24555,9 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rE, getYMMReg(rG) );
+#ifdef AVX_512
+            putZMMRegLane256( rE, 1, mkV256(0) );
+#endif
             DIP("vmovups %s,%s\n", nameYMMReg(rG), nameYMMReg(rE));
             delta += 1;
          } else {
@@ -24494,6 +24706,9 @@ Long dis_ESC_0F__VEX (
          }
          IRTemp res = math_UNPCKxPS_256( eV, vV, hi );
          putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -24550,6 +24765,9 @@ Long dis_ESC_0F__VEX (
          }
          IRTemp res = math_UNPCKxPD_256( eV, vV, hi );
          putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -24653,12 +24871,18 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rG, getYMMReg( rE ));
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovapd %s,%s\n", nameYMMReg(rE), nameYMMReg(rG));
             delta += 1;
          } else {
             addr = disAMode ( &alen, vbi, pfx, delta, dis_buf, 0 );
             gen_SEGV_if_not_32_aligned( addr );
             putYMMReg( rG, loadLE(Ity_V256, mkexpr(addr)) );
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovapd %s,%s\n", dis_buf, nameYMMReg(rG));
             delta += alen;
          }
@@ -24689,12 +24913,18 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rG, getYMMReg( rE ));
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovaps %s,%s\n", nameYMMReg(rE), nameYMMReg(rG));
             delta += 1;
          } else {
             addr = disAMode ( &alen, vbi, pfx, delta, dis_buf, 0 );
             gen_SEGV_if_not_32_aligned( addr );
             putYMMReg( rG, loadLE(Ity_V256, mkexpr(addr)) );
+#ifdef AVX_512
+            putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
             DIP("vmovaps %s,%s\n", dis_buf, nameYMMReg(rG));
             delta += alen;
          }
@@ -24728,6 +24958,9 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rE, getYMMReg(rG) );
+#ifdef AVX_512
+            putZMMRegLane256( rE, 1, mkV256(0) );
+#endif
             DIP("vmovapd %s,%s\n", nameYMMReg(rG), nameYMMReg(rE));
             delta += 1;
          } else {
@@ -24765,6 +24998,9 @@ Long dis_ESC_0F__VEX (
          if (epartIsReg(modrm)) {
             UInt rE = eregOfRexRM(pfx,modrm);
             putYMMReg( rE, getYMMReg(rG) );
+#ifdef AVX_512
+            putZMMRegLane256( rE, 1, mkV256(0) );
+#endif
             DIP("vmovaps %s,%s\n", nameYMMReg(rG), nameYMMReg(rE));
             delta += 1;
             goto decode_success;
@@ -24805,6 +25041,9 @@ Long dis_ESC_0F__VEX (
                            unop(Iop_I32StoF64, mkexpr(arg32)));
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -24833,6 +25072,9 @@ Long dis_ESC_0F__VEX (
                                   mkexpr(arg64)) );
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -24863,6 +25105,9 @@ Long dis_ESC_0F__VEX (
          putXMMRegLane32( rD, 1, getXMMRegLane32( rV, 1 ));
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -24892,6 +25137,9 @@ Long dis_ESC_0F__VEX (
          putXMMRegLane32( rD, 1, getXMMRegLane32( rV, 1 ));
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -25349,6 +25597,9 @@ Long dis_ESC_0F__VEX (
          putXMMRegLane32( rD, 1, getXMMRegLane32( rV, 1 ));
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -25375,6 +25626,9 @@ Long dis_ESC_0F__VEX (
                            unop( Iop_F32toF64, mkexpr(f32lo)) );
          putXMMRegLane64( rD, 1, getXMMRegLane64( rV, 1 ));
          putYMMRegLane128( rD, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -25921,6 +26175,9 @@ Long dis_ESC_0F__VEX (
             DIP("vmovdq%c %s,%s\n", ch, dis_buf, nameYMMReg(rD));
          }
          putYMMReg(rD, mkexpr(tD));
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VMOVDQA xmm2/m128, xmm1 = VEX.128.66.0F.WIG 6F */
@@ -26155,6 +26412,9 @@ Long dis_ESC_0F__VEX (
             assign( vecS1, getYMMRegLane128(rS, 1));
             putYMMRegLane128(rD, 0, mkexpr(math_PSRLDQ( vecS0, imm )));
             putYMMRegLane128(rD, 1, mkexpr(math_PSRLDQ( vecS1, imm )));
+#ifdef AVX_512
+            putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
             *uses_vvvv = True;
             goto decode_success;
          }
@@ -26168,6 +26428,9 @@ Long dis_ESC_0F__VEX (
             assign( vecS1, getYMMRegLane128(rS, 1));
             putYMMRegLane128(rD, 0, mkexpr(math_PSLLDQ( vecS0, imm )));
             putYMMRegLane128(rD, 1, mkexpr(math_PSLLDQ( vecS1, imm )));
+#ifdef AVX_512
+            putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
             *uses_vvvv = True;
             goto decode_success;
          }
@@ -26324,6 +26587,9 @@ Long dis_ESC_0F__VEX (
          putYMMReg( rG, binop(Iop_V128HLtoV256,
                               mkexpr( math_HADDPS_128 ( d1, s1, isAdd ) ),
                               mkexpr( math_HADDPS_128 ( d0, s0, isAdd ) ) ) );
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -26386,6 +26652,9 @@ Long dis_ESC_0F__VEX (
          putYMMReg( rG, binop(Iop_V128HLtoV256,
                               mkexpr( math_HADDPD_128 ( d1, s1, isAdd ) ),
                               mkexpr( math_HADDPD_128 ( d0, s0, isAdd ) ) ) );
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -26416,6 +26685,9 @@ Long dis_ESC_0F__VEX (
          /* zero bits 255:64 */
          putXMMRegLane64( rG, 1, mkU64(0) );
          putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VMOVQ xmm1, r64 = VEX.128.66.0F.W1 7E /r (reg case only) */
@@ -26474,6 +26746,9 @@ Long dis_ESC_0F__VEX (
             UInt rD = eregOfRexRM(pfx, modrm);
             delta += 1;
             putYMMReg(rD, mkexpr(tS));
+#ifdef AVX_512
+            putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
             DIP("vmovdq%c %s,%s\n", ch, nameYMMReg(rS), nameYMMReg(rD));
          } else {
             addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 0 );
@@ -26499,6 +26774,9 @@ Long dis_ESC_0F__VEX (
             UInt rD = eregOfRexRM(pfx, modrm);
             delta += 1;
             putYMMRegLoAndZU(rD, mkexpr(tS));
+#ifdef AVX_512
+            putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
             DIP("vmovdq%c %s,%s\n", ch, nameXMMReg(rS), nameXMMReg(rD));
          } else {
             addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 0 );
@@ -26511,6 +26789,17 @@ Long dis_ESC_0F__VEX (
          goto decode_success;
       }
       break;
+
+#ifdef AVX_512
+   /* AVX-512 OPMASK instructions */
+   case 0x41 ... 0x47:
+   case 0x4A: case 0x4B:
+   case 0x90 ... 0x93:
+   case 0x98: case 0x99:
+      delta = opmask_operation_decode(vbi, ESC_0F, pfx, delta);
+      *uses_vvvv = True;
+      goto decode_success;
+#endif
 
    case 0xAE:
       /* VSTMXCSR m32 = VEX.LZ.0F.WIG AE /3 */
@@ -26698,6 +26987,9 @@ Long dis_ESC_0F__VEX (
          }
          IRTemp res = math_SHUFPS_256( eV, vV, imm8 );
          putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -26758,6 +27050,9 @@ Long dis_ESC_0F__VEX (
          }
          IRTemp res = math_SHUFPD_256( eV, vV, imm8 );
          putYMMReg( rG, mkexpr(res) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -27340,6 +27635,9 @@ Long dis_ESC_0F__VEX (
          assign(tD, loadLE(Ity_V256, mkexpr(addr)));
          DIP("vlddqu %s,%s\n", dis_buf, nameYMMReg(rD));
          putYMMReg(rD, mkexpr(tD));
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VLDDQU m128, xmm1 = VEX.128.F2.0F.WIG F0 /r */
@@ -27854,12 +28152,15 @@ static Long dis_FMA ( const VexAbiInfo* vbi, Prefix pfx, Long delta, UChar opc )
    }
 
    switch (vty) {
-      case Ity_F32:  putYMMRegLane32(rG, 1, mkU32(0)); /*fallthru*/
-      case Ity_F64:  putYMMRegLane64(rG, 1, mkU64(0)); /*fallthru*/
+      case Ity_F32: /*fallthru*/
+      case Ity_F64: /*fallthru*/
       case Ity_V128: putYMMRegLane128(rG, 1, mkV128(0)); /*fallthru*/
       case Ity_V256: break;
       default: vassert(0);
    }
+#ifdef AVX_512
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    return delta;
 }
@@ -27927,8 +28228,14 @@ static ULong dis_VMASKMOV ( Bool *uses_vvvv, const VexAbiInfo* vbi,
       }
    }
 
-   if (isLoad && !isYMM)
+   if (isLoad && !isYMM) {
       putYMMRegLane128( rG, 1, mkV128(0) );
+   }
+#ifdef AVX_512
+   if (isLoad) {
+      putZMMRegLane256( rG, 1, mkV256(0) );
+   }
+#endif
 
    *uses_vvvv = True;
    return delta;
@@ -28024,6 +28331,10 @@ static ULong dis_VGATHER ( Bool *uses_vvvv, const VexAbiInfo* vbi,
       }
       putYMMRegLane128( rG, 1, mkV128(0) );
    }
+#ifdef AVX_512
+   putZMMRegLane256( rV, 1, mkV256(0) );
+   putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 
    *uses_vvvv = True;
    return delta;
@@ -28233,6 +28544,9 @@ Long dis_ESC_0F38__VEX (
                    )
             )
          );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -28318,6 +28632,9 @@ Long dis_ESC_0F38__VEX (
                         dis_PMULHRSW_helper( mkexpr(s0), mkexpr(d0) ) )
             )
          );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          dres->hint = Dis_HintVerbose;
          goto decode_success;
@@ -28376,6 +28693,9 @@ Long dis_ESC_0F38__VEX (
          assign(dataV, getYMMReg(rV));
          IRTemp resV = math_PERMILPS_VAR_256(dataV, ctrlV);
          putYMMReg(rG, mkexpr(resV));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -28433,6 +28753,9 @@ Long dis_ESC_0F38__VEX (
          assign(dataV, getYMMReg(rV));
          IRTemp resV = math_PERMILPD_VAR_256(dataV, ctrlV);
          putYMMReg(rG, mkexpr(resV));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -28538,6 +28861,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VBROADCASTSS xmm2, xmm1 = VEX.128.66.0F38.WIG 18 /r */
@@ -28572,6 +28898,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          delta++;
          goto decode_success;
       }
@@ -28592,6 +28921,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VBROADCASTSD xmm2, ymm1 = VEX.256.66.0F38.WIG 19 /r */
@@ -28607,6 +28939,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          delta++;
          goto decode_success;
       }
@@ -28625,6 +28960,9 @@ Long dis_ESC_0F38__VEX (
          IRTemp t128 = newTemp(Ity_V128);
          assign(t128, loadLE(Ity_V128, mkexpr(addr)));
          putYMMReg( rG, binop(Iop_V128HLtoV256, mkexpr(t128), mkexpr(t128)) );
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -28829,6 +29167,9 @@ Long dis_ESC_0F38__VEX (
          assign(tD, loadLE(Ity_V256, mkexpr(addr)));
          DIP("vmovntdqa %s,%s\n", dis_buf, nameYMMReg(rD));
          putYMMReg(rD, mkexpr(tD));
+#ifdef AVX_512
+         putZMMRegLane256( rD, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -29302,6 +29643,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -29348,6 +29692,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -29365,6 +29712,9 @@ Long dis_ESC_0F38__VEX (
          IRTemp t128 = newTemp(Ity_V128);
          assign(t128, loadLE(Ity_V128, mkexpr(addr)));
          putYMMReg( rG, binop(Iop_V128HLtoV256, mkexpr(t128), mkexpr(t128)) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -29423,6 +29773,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -29477,6 +29830,9 @@ Long dis_ESC_0F38__VEX (
          IRExpr* res = IRExpr_Qop(Iop_64x4toV256, mkexpr(t64), mkexpr(t64),
                                                   mkexpr(t64), mkexpr(t64));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -30375,6 +30731,9 @@ static Long dis_FMA4 (Prefix pfx, Long delta, UChar opc,
 
    /* Zero out top bits of ymm/xmm register. */
    putYMMRegLane128( dst, 1, mkV128(0) );
+#ifdef AVX_512
+   putZMMRegLane256( dst, 1, mkV256(0) );
+#endif
 
    if(zero_64F || zero_96F) {
       putXMMRegLane64( dst, 1, IRExpr_Const(IRConst_U64(0)));
@@ -30511,6 +30870,9 @@ Long dis_ESC_0F3A__VEX (
                                mkexpr(s[(imm8 >> 2) & 3]),
                                mkexpr(s[(imm8 >> 0) & 3])));
          putYMMReg(rG, mkexpr(dV));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -30553,6 +30915,9 @@ Long dis_ESC_0F3A__VEX (
          for (i = 0; i < 4; i++)
             putYMMRegLane32(rG, i, mkexpr((imm8 & (1<<i)) ? d[i] : s[i]));
          putYMMRegLane128(rG, 1, mkV128(0));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -30594,6 +30959,9 @@ Long dis_ESC_0F3A__VEX (
                                &d[3], &d[2], &d[1], &d[0] );
          for (i = 0; i < 8; i++)
             putYMMRegLane32(rG, i, mkexpr((imm8 & (1<<i)) ? d[i] : s[i]));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -30628,6 +30996,9 @@ Long dis_ESC_0F3A__VEX (
          IRTemp  dVlo = math_VPERMILPS_128( sVlo, imm8 );
          IRExpr* res  = binop(Iop_V128HLtoV256, mkexpr(dVhi), mkexpr(dVlo));
          putYMMReg(rG, res);
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       /* VPERMILPS imm8, xmm2/m128, xmm1 = VEX.128.66.0F3A.WIG 04 /r ib */
@@ -30723,6 +31094,9 @@ Long dis_ESC_0F3A__VEX (
                                mkexpr((imm8 & (1<<1)) ? s1 : s0),
                                mkexpr((imm8 & (1<<0)) ? s1 : s0)));
          putYMMReg(rG, mkexpr(dV));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -30768,6 +31142,9 @@ Long dis_ESC_0F3A__VEX (
 #        undef SEL
          if (imm8 & (1<<3)) putYMMRegLane128(rG, 0, mkV128(0));
          if (imm8 & (1<<7)) putYMMRegLane128(rG, 1, mkV128(0));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -30813,6 +31190,9 @@ Long dis_ESC_0F3A__VEX (
 
          breakupV128to32s( src, &s3, &s2, &s1, &s0 );
          putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 #        define CVT(s) binop(Iop_RoundF32toInt, mkexpr(rm), \
                              unop(Iop_ReinterpI32asF32, mkexpr(s)))
          putYMMRegLane32F( rG, 3, CVT(s3) );
@@ -30875,6 +31255,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMRegLane32F( rG, 1, CVT(s1) );
          putYMMRegLane32F( rG, 0, CVT(s0) );
 #        undef CVT
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -30917,6 +31300,9 @@ Long dis_ESC_0F3A__VEX (
 
          breakupV128to64s( src, &s1, &s0 );
          putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
 #        define CVT(s) binop(Iop_RoundF64toInt, mkexpr(rm), \
                              unop(Iop_ReinterpI64asF64, mkexpr(s)))
          putYMMRegLane64F( rG, 1, CVT(s1) );
@@ -30969,6 +31355,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMRegLane64F( rG, 1, CVT(s1) );
          putYMMRegLane64F( rG, 0, CVT(s0) );
 #        undef CVT
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          goto decode_success;
       }
       break;
@@ -31026,6 +31415,9 @@ Long dis_ESC_0F3A__VEX (
          }
          putXMMRegLane64F( rG, 1, getXMMRegLane64F( rV, 1 ) );
          putYMMRegLane128( rG, 1, mkV128(0) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31125,6 +31517,9 @@ Long dis_ESC_0F3A__VEX (
          delta++;
          putYMMReg( rG, 
                     mkexpr( math_BLENDPD_256( sE, sV, imm8) ) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31226,6 +31621,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMReg( rG, binop( Iop_V128HLtoV256,
                                mkexpr( math_PBLENDW_128( sEhi, sVhi, imm8) ),
                                mkexpr( math_PBLENDW_128( sElo, sVlo, imm8) ) ) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31301,6 +31699,9 @@ Long dis_ESC_0F3A__VEX (
                                mkexpr( math_PALIGNR_XMM( sHi, dHi, imm8 ) ),
                                mkexpr( math_PALIGNR_XMM( sLo, dLo, imm8 ) ) )
                     );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31379,6 +31780,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMRegLane128(rG, 0,   getYMMRegLane128(rV, 0));
          putYMMRegLane128(rG, 1,   getYMMRegLane128(rV, 1));
          putYMMRegLane128(rG, ib & 1, mkexpr(t128));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31576,6 +31980,13 @@ Long dis_ESC_0F3A__VEX (
       }
       break;
 
+#ifdef AVX_512
+   /* AVX-512 OPMASK instructions */
+   case 0x30 ... 0x33:
+      delta = opmask_operation_decode(vbi, ESC_0F3A, pfx, delta);
+      return delta;
+#endif
+
    case 0x38:
       /* VINSERTI128 r/m, rV, rD
          ::: rD = insertinto(a lane in rV, 128 bits from r/m) */
@@ -31606,6 +32017,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMRegLane128(rG, 0,   getYMMRegLane128(rV, 0));
          putYMMRegLane128(rG, 1,   getYMMRegLane128(rV, 1));
          putYMMRegLane128(rG, ib & 1, mkexpr(t128));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31707,6 +32121,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMReg( rG, binop( Iop_V128HLtoV256,
                                mkexpr( math_DPPS_128(s1, d1, imm8) ),
                                mkexpr( math_DPPS_128(s0, d0, imm8) ) ) );
+#ifdef AVX_512
+         putZMMRegLane256(rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31818,6 +32235,9 @@ Long dis_ESC_0F3A__VEX (
          putYMMReg( rG, binop( Iop_V128HLtoV256,
                                mkexpr( math_MPSADBW_128(dHi, sHi, imm8 >> 3) ),
                                mkexpr( math_MPSADBW_128(dLo, sLo, imm8) ) ) );
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -31904,6 +32324,9 @@ Long dis_ESC_0F3A__VEX (
 #        undef SEL
          if (imm8 & (1<<3)) putYMMRegLane128(rG, 0, mkV128(0));
          if (imm8 & (1<<7)) putYMMRegLane128(rG, 1, mkV128(0));
+#ifdef AVX_512
+         putZMMRegLane256( rG, 1, mkV256(0) );
+#endif
          *uses_vvvv = True;
          goto decode_success;
       }
@@ -32206,6 +32629,11 @@ DisResult disInstr_AMD64_WRK (
       if (n_prefixes > 7) goto decode_failure;
       pre = getUChar(delta);
       switch (pre) {
+#ifdef AVX_512
+         case 0x62:
+            delta = dis__EVEX(vbi, pfx, delta);
+            goto decode_success;
+#endif
          case 0x66: pfx |= PFX_66; break;
          case 0x67: pfx |= PFX_ASO; break;
          case 0xF2: pfx |= PFX_F2; break;
@@ -32583,6 +33011,10 @@ DisResult disInstr_AMD64 ( IRSB*        irsb_IN,
    return dres;
 }
 
+/* Adding AVX-512 finctionality as C file so it would have access to static AVX-2 functions */
+#ifdef AVX_512
+#include "guest_amd64_toIR_AVX512.c"
+#endif
 
 /*------------------------------------------------------------*/
 /*--- Unused stuff                                         ---*/

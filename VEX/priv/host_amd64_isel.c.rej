@@ -1,0 +1,40 @@
+--- VEX/priv/host_amd64_isel.c
++++ VEX/priv/host_amd64_isel.c
+@@ -240,23 +245,23 @@ static void          iselInt128Expr     ( /*OUT*/HReg* rHi, HReg* rLo,
+                                           ISelEnv* env, const IRExpr* e );
+ 
+ static AMD64CondCode iselCondCode_C_wrk  ( ISelEnv* env, const IRExpr* e );
+-static AMD64CondCode iselCondCode_C      ( ISelEnv* env, const IRExpr* e );
++       AMD64CondCode iselCondCode_C      ( ISelEnv* env, const IRExpr* e );
+ 
+ static HReg          iselCondCode_R_wrk  ( ISelEnv* env, const IRExpr* e );
+ static HReg          iselCondCode_R      ( ISelEnv* env, const IRExpr* e );
+ 
+ static HReg          iselDblExpr_wrk     ( ISelEnv* env, const IRExpr* e );
+-static HReg          iselDblExpr         ( ISelEnv* env, const IRExpr* e );
++       HReg          iselDblExpr         ( ISelEnv* env, const IRExpr* e );
+ 
+ static HReg          iselFltExpr_wrk     ( ISelEnv* env, const IRExpr* e );
+-static HReg          iselFltExpr         ( ISelEnv* env, const IRExpr* e );
++       HReg          iselFltExpr         ( ISelEnv* env, const IRExpr* e );
+ 
+ static HReg          iselVecExpr_wrk     ( ISelEnv* env, const IRExpr* e );
+-static HReg          iselVecExpr         ( ISelEnv* env, const IRExpr* e );
++       HReg          iselVecExpr         ( ISelEnv* env, const IRExpr* e );
+ 
+ static void          iselDVecExpr_wrk ( /*OUT*/HReg* rHi, HReg* rLo,
+                                         ISelEnv* env, const IRExpr* e );
+-static void          iselDVecExpr     ( /*OUT*/HReg* rHi, HReg* rLo,
++       void          iselDVecExpr     ( /*OUT*/HReg* rHi, HReg* rLo,
+                                         ISelEnv* env, const IRExpr* e );
+ 
+ 
+@@ -4027,7 +4062,7 @@ static HReg iselVecExpr_wrk ( ISelEnv* env, const IRExpr* e )
+ /*--- ISEL: SIMD (V256) expressions, into 2 XMM regs.    --*/
+ /*---------------------------------------------------------*/
+ 
+-static void iselDVecExpr ( /*OUT*/HReg* rHi, /*OUT*/HReg* rLo,
++void iselDVecExpr ( /*OUT*/HReg* rHi, /*OUT*/HReg* rLo,
+                            ISelEnv* env, const IRExpr* e )
+ {
+    iselDVecExpr_wrk( rHi, rLo, env, e );

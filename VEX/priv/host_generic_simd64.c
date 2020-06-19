@@ -40,7 +40,9 @@
 #include "main_util.h"              // LIKELY, UNLIKELY
 #include "host_generic_simd64.h"
 
-
+#ifdef AVX_512
+#include "host_generic_AVX512.h"
+#endif
 
 /* Tuple/select functions for 32x2 vectors. */
 

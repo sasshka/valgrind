@@ -93,6 +93,10 @@ static void x86_thread_state64_from_vex(x86_thread_state64_t *mach,
 static void x86_float_state64_from_vex(x86_float_state64_t *mach, 
                                        VexGuestAMD64State *vex)
 {
+#ifdef AVX_512
+   x86_float_state64_from_vex_AVX512( mach, vex );
+#else
+
    // DDD: #warning GrP fixme fp state
    // JRS: what about the YMMHI bits?  Are they important?
    VG_(memcpy)(&mach->__fpu_xmm0,  &vex->guest_YMM0,   sizeof(mach->__fpu_xmm0));
@@ -111,8 +115,9 @@ static void x86_float_state64_from_vex(x86_float_state64_t *mach,
    VG_(memcpy)(&mach->__fpu_xmm13, &vex->guest_YMM13,  sizeof(mach->__fpu_xmm13));
    VG_(memcpy)(&mach->__fpu_xmm14, &vex->guest_YMM14,  sizeof(mach->__fpu_xmm14));
    VG_(memcpy)(&mach->__fpu_xmm15, &vex->guest_YMM15,  sizeof(mach->__fpu_xmm15));
-}
 
+#endif
+}
 
 void thread_state_from_vex(thread_state_t mach_generic, 
                            thread_state_flavor_t flavor, 
@@ -187,6 +192,9 @@ static void x86_thread_state64_to_vex(const x86_thread_state64_t *mach,
 static void x86_float_state64_to_vex(const x86_float_state64_t *mach, 
                                      VexGuestAMD64State *vex)
 {
+#ifdef AVX_512
+   x86_float_state64_to_vex_AVX512( mach, vex );
+#else
    // DDD: #warning GrP fixme fp state
    // JRS: what about the YMMHI bits?  Are they important?
    VG_(memcpy)(&vex->guest_YMM0,  &mach->__fpu_xmm0,  sizeof(mach->__fpu_xmm0));
@@ -205,8 +213,9 @@ static void x86_float_state64_to_vex(const x86_float_state64_t *mach,
    VG_(memcpy)(&vex->guest_YMM13, &mach->__fpu_xmm13, sizeof(mach->__fpu_xmm13));
    VG_(memcpy)(&vex->guest_YMM14, &mach->__fpu_xmm14, sizeof(mach->__fpu_xmm14));
    VG_(memcpy)(&vex->guest_YMM15, &mach->__fpu_xmm15, sizeof(mach->__fpu_xmm15));
-}
 
+#endif
+}
 
 void thread_state_to_vex(const thread_state_t mach_generic, 
                          thread_state_flavor_t flavor, 

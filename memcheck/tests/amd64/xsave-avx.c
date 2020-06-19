@@ -325,7 +325,9 @@ int main ( int argc, char** argv )
    fprintf(stderr, "Re-run with any arg to suppress least-significant\n"
                    "   16 bits of 80-bit FP numbers\n");
 
+#ifndef AVX_512
    check_for_xsave();
+#endif
 
    if (1)
    test_xsave(hideBits64to79);

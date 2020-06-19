@@ -2077,7 +2077,11 @@ AMD64Instr* genMove_AMD64(HReg from, HReg to, Bool mode64)
 
 AMD64Instr* directReload_AMD64( AMD64Instr* i, HReg vreg, Short spill_off )
 {
+#ifdef AVX_512
+   vassert(spill_off >= 0 && spill_off < 40000); /* let's say */
+#else
    vassert(spill_off >= 0 && spill_off < 10000); /* let's say */
+#endif
 
    /* Deal with form: src=RMI_Reg, dst=Reg where src == vreg 
       Convert to: src=RMI_Mem, dst=Reg 

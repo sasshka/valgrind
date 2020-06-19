@@ -28,6 +28,7 @@ pkginclude_HEADERS = \
 	pub/libvex_guest_mips64.h \
 	pub/libvex_s390x_common.h \
 	pub/libvex_ir.h \
+	pub/libvex_ir_AVX512.h \
 	pub/libvex_trc_values.h \
 	pub/libvex_inner.h
 # libvex_inner.h is special: it is a public header for valgrind core,
@@ -36,6 +37,7 @@ pkginclude_HEADERS = \
 noinst_HEADERS = \
 	priv/main_globals.h \
 	priv/main_util.h \
+	priv/ir_defs_AVX512.h \
 	priv/ir_match.h \
 	priv/ir_opt.h \
 	priv/guest_generic_bb_to_IR.h \
@@ -53,7 +55,9 @@ noinst_HEADERS = \
 	priv/host_generic_simd64.h \
 	priv/host_generic_simd128.h \
 	priv/host_generic_simd256.h \
+	priv/host_generic_AVX512.h \
 	priv/host_generic_maddf.h \
+	priv/host_generic_AVX512_ER.h \
 	priv/host_x86_defs.h \
 	priv/host_amd64_defs.h \
 	priv/host_ppc_defs.h \
@@ -63,6 +67,7 @@ noinst_HEADERS = \
 	priv/s390_disasm.h \
 	priv/s390_defs.h \
 	priv/host_mips_defs.h \
+   priv/main_main_AVX512.h \
 	priv/host_nanomips_defs.h \
 	priv/common_nanomips_defs.h
 
@@ -126,8 +131,10 @@ endif
 
 LIBVEX_SOURCES_COMMON = \
 	priv/main_globals.c \
+	priv/main_main_AVX512.c \
 	priv/main_main.c \
 	priv/main_util.c \
+	priv/ir_defs_AVX512.c \
 	priv/ir_defs.c \
 	priv/ir_inject.c \
 	priv/ir_match.c \
@@ -137,6 +144,7 @@ LIBVEX_SOURCES_COMMON = \
 	priv/guest_x86_helpers.c \
 	priv/guest_x86_toIR.c \
 	priv/guest_amd64_helpers.c \
+	priv/guest_amd64_helpers_AVX512.c \
 	priv/guest_amd64_toIR.c \
 	priv/guest_ppc_helpers.c \
 	priv/guest_ppc_toIR.c \
@@ -155,13 +163,17 @@ LIBVEX_SOURCES_COMMON = \
 	priv/host_generic_simd64.c \
 	priv/host_generic_simd128.c \
 	priv/host_generic_simd256.c \
+	priv/host_generic_AVX512.c \
 	priv/host_generic_maddf.c \
+	priv/RECIP14.c \
+	priv/RECIP28EXP2.c \
 	priv/host_generic_reg_alloc2.c \
 	priv/host_generic_reg_alloc3.c \
 	priv/host_x86_defs.c \
 	priv/host_x86_isel.c \
 	priv/host_amd64_defs.c \
 	priv/host_amd64_isel.c \
+	priv/host_amd64_isel_AVX512.c \
 	priv/host_ppc_defs.c \
 	priv/host_ppc_isel.c \
 	priv/host_arm_defs.c \
