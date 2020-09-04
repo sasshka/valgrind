@@ -286,6 +286,12 @@ static IRExpr* triop ( IROp op, IRExpr* a1, IRExpr* a2, IRExpr* a3 )
    return IRExpr_Triop(op, a1, a2, a3);
 }
 
+static IRExpr* qop ( IROp op, IRExpr* a1, IRExpr* a2, 
+                              IRExpr* a3, IRExpr* a4 )
+{
+   return IRExpr_Qop(op, a1, a2, a3, a4);
+}
+
 static IRExpr* loadLE ( IRType ty, IRExpr* addr )
 {
    return IRExpr_Load(Iend_LE, ty, addr);
@@ -529,6 +535,14 @@ static IROp mkADDF ( IRType ty ) {
       case Ity_F32: return Iop_AddF32;
       case Ity_F64: return Iop_AddF64;
       default: vpanic("mkADDF");
+   }
+}
+
+static IROp mkFMAF ( IRType ty ) {
+   switch (ty) {
+      case Ity_F32: return Iop_MAddF32;
+      case Ity_F64: return Iop_MAddF64;
+      default: vpanic("mkDMAF");
    }
 }
 
@@ -14373,6 +14387,7 @@ Bool dis_AdvSIMD_fp_data_proc_3_source(/*MB_OUT*/DisResult* dres, UInt insn)
       Bool    isD   = (ty & 1) == 1;
       UInt    ix    = (bitO1 << 1) | bitO0;
       IRType  ity   = isD ? Ity_F64 : Ity_F32;
+      IROp    opFMA = mkFMAF(ity);
       IROp    opADD = mkADDF(ity);
       IROp    opSUB = mkSUBF(ity);
       IROp    opMUL = mkMULF(ity);
@@ -14384,7 +14399,7 @@ Bool dis_AdvSIMD_fp_data_proc_3_source(/*MB_OUT*/DisResult* dres, UInt insn)
       IRExpr* rm    = mkexpr(mk_get_IR_rounding_mode());
       IRExpr* eNxM  = triop(opMUL, rm, eN, eM);
       switch (ix) {
-         case 0:  assign(res, triop(opADD, rm, eA, eNxM)); break;
+         case 0:  assign(res, qop(opFMA, rm, eA, eN, eM)); break;
          case 1:  assign(res, triop(opSUB, rm, eA, eNxM)); break;
          case 2:  assign(res, unop(opNEG, triop(opADD, rm, eA, eNxM))); break;
          case 3:  assign(res, unop(opNEG, triop(opSUB, rm, eA, eNxM))); break;

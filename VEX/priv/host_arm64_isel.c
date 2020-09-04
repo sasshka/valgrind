@@ -3255,6 +3255,42 @@ static HReg iselDblExpr_wrk ( ISelEnv* env, IRExpr* e )
       }
    }
 
+   if (e->tag == Iex_Qop) {
+      IRQop*     qop = e->Iex.Qop.details;
+      ARM64FpBinOp dblop = ARM64fpb_INVALID;
+      switch (qop->op) {
+         case Iop_MAddF64: dblop = ARM64fpb_ADD; break;
+         default: break;
+      }
+      if (dblop != ARM64fpb_INVALID) {
+         HReg arg1 = iselDblExpr(env, qop->arg2);
+         HReg arg2 = iselDblExpr(env, qop->arg3);
+         HReg arg3 = iselDblExpr(env, qop->arg4);
+         HReg dst  = newVRegD(env);
+         set_FPCR_rounding_mode(env, qop->arg1);
+         addInstr(env, ARM64Instr_VBinD(dblop, dst, arg1, arg2 /*, arg3 */));
+         return dst;
+      }
+   }
+
+   if (e->tag == Iex_Qop) {
+      IRQop*     qop = e->Iex.Qop.details;
+      ARM64FpBinOp dblop = ARM64fpb_INVALID;
+      switch (qop->op) {
+         case Iop_MAddF32: dblop = ARM64fpb_ADD; break;
+         default: break;
+      }
+      if (dblop != ARM64fpb_INVALID) {
+         HReg arg1 = iselFltExpr(env, qop->arg2);
+         HReg arg2 = iselFltExpr(env, qop->arg3);
+         HReg arg3 = iselFltExpr(env, qop->arg4);
+         HReg dst  = newVRegD(env);
+         set_FPCR_rounding_mode(env, qop->arg1);
+         addInstr(env, ARM64Instr_VBinS(dblop, dst, arg1, arg2 /*, arg3 */));
+         return dst;
+      }
+   }
+
    if (e->tag == Iex_ITE) {
       /* ITE(ccexpr, iftrue, iffalse) */
       ARM64CondCode cc;
